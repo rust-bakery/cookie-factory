@@ -75,6 +75,17 @@ macro_rules! opt (
 );
 
 #[macro_export]
+macro_rules! many (
+  ($writer:ident!($($wargs:tt)*), $config:expr, $value:expr, $submac:ident!( $($args:tt)* )) => (
+    {
+      for el in $value {
+        $submac:ident!( $writer!($($wargs)*), $config, $($args:tt)*, el )
+      }
+    }
+  );
+);
+
+#[macro_export]
 macro_rules! s_u8 (
   ($writer:ident!($($wargs:tt)*), $config:expr, $value:expr) => (
     {
@@ -128,6 +139,20 @@ mod tests {
     let res = write_slice!(&mut v[..], s_u32!((), 2147483647_u32));
     trace_macros!(false);
     println!("res: {:?}", res);
+    println!("vec: {:?}", v);
+    assert_eq!(&v[..], &[0x7f, 0xff, 0xff, 0xff]);
+  }
+
+  #[test]
+  fn writer_array() {
+    trace_macros!(true);
+    let mut v = Vec::new();
+    let input = vec![0x7f, 0xff, 0xff, 0xff];
+
+    let res = write_vec!(v, s_u32!((), 2147483647_u32));
+    trace_macros!(false);
+    println!("res: {:?}", res);
+    println!("vec: {:?}", v);
     assert_eq!(&v[..], &[0x7f, 0xff, 0xff, 0xff]);
   }
 }
