@@ -8,13 +8,6 @@
 //* config can be endianness
 // combinator: c!(writer, config, conbinator/serializer)
 
-/// doc
-///
-enum WriteMode {
-  Slice,
-  Byte
-}
-
 #[macro_export]
 macro_rules! write_vec (
   ($vec: expr,  $submac:ident!($($args:tt)*)) => (
@@ -27,10 +20,17 @@ macro_rules! write_vec (
 #[macro_export]
 macro_rules! write_vec_impl (
   ($vec:expr, $config:expr, Slice, $value: expr) => (
-    ($vec).extend(($value).iter().cloned());
+    {
+      ($vec).extend(($value).iter().cloned());
+      Ok(($value).len())
+    }
   );
   ($vec:expr, $config:expr, Byte, $value: expr) => (
-    ($vec).push($value);
+    {
+      ($vec).push($value);
+      let res:Result<usize,()> = Ok(1usize);
+      res
+    }
   );
 );
 
@@ -50,14 +50,24 @@ macro_rules! write_slice (
 macro_rules! write_slice_impl (
   (($sl:expr, $pos:expr), $config:expr, Slice, $value: expr) => (
     {
-      std::slice::bytes::copy_memory($value, &mut ($sl)[$pos..($value.length)]);
-      $pos += value.length;
+      if ($value).len() < $sl.len() - $pos {
+        std::slice::bytes::copy_memory($value, &mut ($sl)[$pos..($value.length)]);
+        $pos += value.length;
+        Ok(($value).len())
+      } else {
+        Err(())
+      }
     }
   );
   (($sl:expr, $pos:expr), $config:expr, Byte, $value: expr) => (
     {
-      $sl[$pos] = $value as u8;
-      $pos += 1;
+      if $sl.len() - $pos > 0 {
+        $sl[$pos] = $value as u8;
+        $pos += 1;
+        Ok(1)
+      } else {
+        Err(())
+      }
     }
   );
 );
@@ -75,7 +85,7 @@ macro_rules! opt (
 );
 
 #[macro_export]
-macro_rules! many (
+macro_rules! s_many (
   ($writer:ident!($($wargs:tt)*), $config:expr, $value:expr, $submac:ident!( $($args:tt)* )) => (
     {
       for el in $value {
@@ -124,10 +134,11 @@ mod tests {
   fn writer_vec() {
     trace_macros!(true);
     let mut v = Vec::new();
-    let res = write_vec!(v, s_u32!((), 2147483647_u32));
+    let res:Result<usize,()> = write_vec!(v, s_u32!((), 2147483647_u32));
     trace_macros!(false);
     println!("res: {:?}", res);
     println!("vec: {:?}", v);
+    assert_eq!(res, Ok(4));
     assert_eq!(&v[..], &[0x7f, 0xff, 0xff, 0xff]);
   }
 
@@ -140,6 +151,7 @@ mod tests {
     trace_macros!(false);
     println!("res: {:?}", res);
     println!("vec: {:?}", v);
+    assert_eq!(res, Ok(4));
     assert_eq!(&v[..], &[0x7f, 0xff, 0xff, 0xff]);
   }
 
@@ -153,6 +165,8 @@ mod tests {
     trace_macros!(false);
     println!("res: {:?}", res);
     println!("vec: {:?}", v);
+    assert_eq!(res, Ok(4));
     assert_eq!(&v[..], &[0x7f, 0xff, 0xff, 0xff]);
+    //assert!(false);
   }
 }
