@@ -91,6 +91,43 @@ macro_rules! s_many (
       for el in $value {
         $submac:ident!( $writer!($($wargs)*), $config, $($args:tt)*, el )
       }
+      Ok(42usize)
+    }
+  );
+);
+
+#[macro_export]
+macro_rules! s_chain (
+  ($writer:ident!($($wargs:tt)*), $config:expr, $($rest:tt)* ) => (
+    s_chain_impl!($writer!($($wargs)*), $config, 0, $($rest)* )
+  );
+);
+
+#[macro_export]
+macro_rules! s_chain_impl (
+  ($writer:ident!($($wargs:tt)*), $config:expr, $acc:expr, $submac:ident!( $($args:tt)* ) ~ $($rest:tt)*) => (
+    {
+      match $submac!( $writer!($($wargs)*), $config, $($args)*) {
+        Err(e) => Err(e),
+        Ok(i)  => s_chain_impl!($writer!($($wargs)*), $config, $acc + i, $($rest)*)
+      }
+    }
+  );
+  ($writer:ident!($($wargs:tt)*), $config:expr, $acc:expr, $submac:ident!( $($args:tt)* )) => (
+    {
+      match $submac!( $writer!($($wargs)*), $config, $($args)*) {
+        Err(e) => Err(e),
+        Ok(i)  => Ok($acc + i)
+      }
+    }
+  );
+);
+
+#[macro_export]
+macro_rules! s_apply (
+  ($writer:ident!($($wargs:tt)*), $config:expr, $($args:tt)*) => (
+    {
+      $writer!($($wargs)*, $config, $($args)*)
     }
   );
 );
@@ -108,8 +145,10 @@ macro_rules! s_u8 (
 macro_rules! s_u16 (
   ($writer:ident!($($wargs:tt)*), $config:expr, $value:expr) => (
     {
-      $writer!($($wargs)*, $config, Byte, ($value >> 8) as u8);
-      $writer!($($wargs)*, $config, Byte, $value as u8);
+      s_chain!($writer!($($wargs)*), $config,
+        s_apply!(Byte, ($value >> 8) as u8)  ~
+        s_apply!(Byte, $value as u8)
+      )
     }
   );
 );
@@ -118,10 +157,12 @@ macro_rules! s_u16 (
 macro_rules! s_u32 (
   ($writer:ident!($($wargs:tt)*), $config:expr, $value:expr) => (
     {
-      $writer!($($wargs)*, $config, Byte, ($value >> 24) as u8);
-      $writer!($($wargs)*, $config, Byte, ($value >> 16) as u8);
-      $writer!($($wargs)*, $config, Byte, ($value >> 8) as u8);
-      $writer!($($wargs)*, $config, Byte, $value as u8);
+      s_chain!($writer!($($wargs)*), $config,
+        s_apply!(Byte, ($value >> 24) as u8) ~
+        s_apply!(Byte, ($value >> 16) as u8) ~
+        s_apply!(Byte, ($value >> 8) as u8)  ~
+        s_apply!(Byte, $value as u8)
+      )
     }
   );
 );
