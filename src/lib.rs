@@ -17,6 +17,15 @@ enum WriteMode {
 
 #[macro_export]
 macro_rules! write_vec (
+  ($vec: expr,  $submac:ident!($($args:tt)*)) => (
+    {
+      $submac!(write_vec_impl!($vec), $($args)*)
+    }
+  )
+);
+
+#[macro_export]
+macro_rules! write_vec_impl (
   ($vec:expr, $config:expr, Slice, $value: expr) => (
     ($vec).extend(($value).iter().cloned());
   );
@@ -25,18 +34,20 @@ macro_rules! write_vec (
   );
 );
 
-/*
-#[macro_export]
-macro_rules! write_slice (
-  ($sl:expr, $($wargs:tt)*) => (
-    let mut pos = 0;
-    write_slice_impl!(($sl, pos), $($wargs)*)
-  );
-);
-*/
 
 #[macro_export]
 macro_rules! write_slice (
+  ($sl:expr, $submac:ident!($($args:tt)*)) => (
+    {
+      let mut pos = 0;
+      $submac!(write_slice_impl!(($sl, pos)), $($args)*)
+    }
+  );
+);
+
+
+#[macro_export]
+macro_rules! write_slice_impl (
   (($sl:expr, $pos:expr), $config:expr, Slice, $value: expr) => (
     {
       std::slice::bytes::copy_memory($value, &mut ($sl)[$pos..($value.length)]);
@@ -102,7 +113,7 @@ mod tests {
   fn writer_vec() {
     trace_macros!(true);
     let mut v = Vec::new();
-    let res = s_u32!(write_vec!(v), (), 2147483647_u32);
+    let res = write_vec!(v, s_u32!((), 2147483647_u32));
     trace_macros!(false);
     println!("res: {:?}", res);
     println!("vec: {:?}", v);
@@ -112,14 +123,11 @@ mod tests {
   #[test]
   fn writer_slice() {
     trace_macros!(true);
-    let mut v   = Vec::with_capacity(5);
-    v.extend(iter::repeat(0).take(5));
-    let mut pos = 0usize;
-    let res = s_u32!(write_slice!((&mut v[..], pos)), (), 2147483647_u32);
+    let mut v   = Vec::with_capacity(4);
+    v.extend(iter::repeat(0).take(4));
+    let res = write_slice!(&mut v[..], s_u32!((), 2147483647_u32));
     trace_macros!(false);
     println!("res: {:?}", res);
-    println!("vec: {:?}, pos: {}", v, pos);
     assert_eq!(&v[..], &[0x7f, 0xff, 0xff, 0xff]);
-    assert!(false);
   }
 }
