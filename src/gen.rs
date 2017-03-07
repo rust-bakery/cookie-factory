@@ -330,6 +330,90 @@ macro_rules! gen_be_u64(
     );
 );
 
+/// `gen_be_i8!(I, i8) => I -> Result<I,E>`
+/// Write a signed 1 byte integer.
+#[macro_export]
+macro_rules! gen_be_i8(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u8!(($val) as u8)
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_i8!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_be_i16!(I, i16) => I -> Result<I,E>`
+/// Write a signed 2 byte integer.
+#[macro_export]
+macro_rules! gen_be_i16(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u16!(($val) as u16)
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_i16!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_be_i24!(I, i24) => I -> Result<I,E>`
+/// Write a signed 3 byte integer.
+#[macro_export]
+macro_rules! gen_be_i24(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u24!(($val) as u32)
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_i24!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_be_i32!(I, i32) => I -> Result<I,E>`
+/// Write a signed 4 byte integer.
+#[macro_export]
+macro_rules! gen_be_i32(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u32!(($val) as u32)
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_i32!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_be_i64!(I, i64) => I -> Result<I,E>`
+/// Write a signed 8 byte integer.
+#[macro_export]
+macro_rules! gen_be_i64(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u64!(($val) as u64)
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_i64!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_be_f32!(I, f32) => I -> Result<I,E>`
+/// Write a 4 byte float.
+#[macro_export]
+macro_rules! gen_be_f32(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u32!(::std::mem::transmute::<f32, u32>(o)($val))
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_f32!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_be_f64!(I, f64) => I -> Result<I,E>`
+/// Write a 8 byte float.
+#[macro_export]
+macro_rules! gen_be_f64(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_be_u64!(::std::mem::transmute::<f64, u64>(o)($val))
+    );
+    ($i:expr, $val:expr) => (
+        gen_be_f64!(($i.0, $i.1), $val)
+    );
+);
+
 /// `gen_le_u8!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 1 byte integer.
 #[macro_export]
@@ -443,6 +527,91 @@ macro_rules! gen_le_u64(
         gen_le_u64!(($i.0, $i.1), $val)
     );
 );
+
+/// `gen_le_i8!(I, i8) => I -> Result<I,E>`
+/// Write a signed 1 byte integer.
+#[macro_export]
+macro_rules! gen_le_i8(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u8!(($val) as u8)
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_i8!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_le_i16!(I, i16) => I -> Result<I,E>`
+/// Write a signed 2 byte integer.
+#[macro_export]
+macro_rules! gen_le_i16(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u16!(($val) as u16)
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_i16!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_le_i24!(I, i24) => I -> Result<I,E>`
+/// Write a signed 3 byte integer.
+#[macro_export]
+macro_rules! gen_le_i24(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u24!(($val) as u32)
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_i24!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_le_i32!(I, i32) => I -> Result<I,E>`
+/// Write a signed 4 byte integer.
+#[macro_export]
+macro_rules! gen_le_i32(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u32!(($val) as u32)
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_i32!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_le_i64!(I, i64) => I -> Result<I,E>`
+/// Write a signed 8 byte integer.
+#[macro_export]
+macro_rules! gen_le_i64(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u64!(($val) as u64)
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_i64!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_le_f32!(I, f32) => I -> Result<I,E>`
+/// Write a 4 byte float.
+#[macro_export]
+macro_rules! gen_le_f32(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u32!(::std::mem::transmute::<f32, u32>(o)($val))
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_f32!(($i.0, $i.1), $val)
+    );
+);
+
+/// `gen_le_f64!(I, f64) => I -> Result<I,E>`
+/// Write a 8 byte float.
+#[macro_export]
+macro_rules! gen_le_f64(
+    (($i:expr, $idx:expr), $val:expr) => (
+        gen_le_u64!(::std::mem::transmute::<f64, u64>(o)($val))
+    );
+    ($i:expr, $val:expr) => (
+        gen_le_f64!(($i.0, $i.1), $val)
+    );
+);
+
 
 /// `gen_copy!(I, &[u8], u8) => I -> Result<I,E>`
 /// Writes a slice, copying only the specified number of bytes to the output buffer.
