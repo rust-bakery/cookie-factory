@@ -6,19 +6,21 @@ rust:
   - stable
 
 before_script:
-  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-
-script:
-  - travis-cargo test
+  - cargo install cargo-travis && export PATH=$HOME/.cargo/bin:$PATH
 
 after_success:
-  - travis-cargo coveralls --no-sudo
-
-    #env:
-  #  global:
-    # override the default `--features unstable` used for the nightly branch (optional)
-    #    - TRAVIS_CARGO_NIGHTLY_FEATURE=nightly
+  - cargo coveralls --verbose
 
 dist: trusty
 sudo: false
 
+addons:
+    apt:
+        packages:
+            - libcurl4-openssl-dev
+            - libelf-dev
+            - libdw-dev
+            - binutils-dev
+            - cmake
+        sources:
+            - kalakris-cmake
