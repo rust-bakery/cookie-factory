@@ -2,6 +2,7 @@
 name = "cookie-factory"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+description = "nom inspired serialization library"
 
 [badges]
 travis-ci = { repository = "Geal/cookie-factory" }
