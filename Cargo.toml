@@ -2,6 +2,7 @@
 name = "cookie-factory"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
+license = "MIT"
 description = "nom inspired serialization library"
 
 [badges]
