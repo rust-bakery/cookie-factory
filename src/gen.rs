@@ -618,7 +618,7 @@ macro_rules! gen_le_f64(
 #[macro_export]
 macro_rules! gen_copy(
     (($i:expr, $idx:expr), $val:expr, $l:expr) => (
-        match $i.len() <= $idx+$l {
+        match $i.len() < $idx+$l {
             true  => Err(GenError::BufferTooSmall($idx+$l+1)),
             false => {
                 $i[$idx..$idx+$l].clone_from_slice(&$val[0..$l]);
@@ -1070,6 +1070,22 @@ mod tests {
         match r {
             Ok((b,idx)) => {
                 assert_eq!(idx,4);
+                assert_eq!(b,&expected);
+            },
+            Err(e) => panic!("error {:?}",e),
+        }
+    }
+
+    #[test]
+    fn test_gen_slice() {
+        let mut mem : [u8; 0] = [0; 0];
+        let s = &mut mem[..];
+        let v = [];
+        let expected = [];
+        let r = gen_slice!((s,0),v);
+        match r {
+            Ok((b,idx)) => {
+                assert_eq!(idx,0);
                 assert_eq!(b,&expected);
             },
             Err(e) => panic!("error {:?}",e),
