@@ -3,7 +3,12 @@ name = "cookie-factory"
 version = "0.1.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>"]
 license = "MIT"
+repository = "https://github.com/Geal/cookie-factory"
+readme = "README.md"
+documentation = "http://docs.rs/cookie-factory"
 description = "nom inspired serialization library"
+categories = ["encoding"]
+keywords = ["encoding", "serialization", "nom"]
 
 [badges]
 travis-ci = { repository = "Geal/cookie-factory" }
