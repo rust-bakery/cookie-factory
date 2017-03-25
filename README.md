@@ -7,3 +7,5 @@
 serialization library built on the same design as nom.
 
 Highly experimental, don't use it if you're afraid of rewriting all your code
+
+Reference documentation is available [here](https://docs.rs/cookie-factory/).
