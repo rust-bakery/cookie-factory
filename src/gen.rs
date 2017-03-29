@@ -1,7 +1,7 @@
 //! Generator combinator, based on [nom](https://github.com/Geal/nom)'s syntax.
 
 /// Base type for generator errors
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GenError {
     /// Input buffer is too small. Argument is the maximum index that is required
     BufferTooSmall(usize),
