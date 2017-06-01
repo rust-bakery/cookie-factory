@@ -810,7 +810,7 @@ macro_rules! gen_if_else(
 #[macro_export]
 macro_rules! gen_many_ref(
     (($i:expr, $idx:expr), $l:expr, $f:expr) => (
-        $l.iter().fold(
+        $l.into_iter().fold(
             Ok(($i,$idx)),
             |r,ref v| {
                 match r {
@@ -827,9 +827,9 @@ macro_rules! gen_many_ref(
 #[macro_export]
 macro_rules! gen_many(
     (($i:expr, $idx:expr), $l:expr, $f:expr) => (
-        $l.iter().fold(
+        $l.into_iter().fold(
             Ok(($i,$idx)),
-            |r,&v| {
+            |r,v| {
                 match r {
                     Err(e) => Err(e),
                     Ok(x) => { $f(x, v) },
