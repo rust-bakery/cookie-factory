@@ -822,6 +822,23 @@ macro_rules! gen_many_ref(
     );
 );
 
+/// `gen_many_byref!(I, Iterable<V>, Fn(I,V)) => I -> Result<I,E>`
+/// Applies the generator `$f` to every element of `$l`, where arguments of $l are references
+#[macro_export]
+macro_rules! gen_many_byref(
+    (($i:expr, $idx:expr), $l:expr, $f:expr) => (
+        $l.into_iter().fold(
+            Ok(($i,$idx)),
+            |r,&v| {
+                match r {
+                    Err(e) => Err(e),
+                    Ok(x) => { $f(x, v) },
+                }
+            }
+        )
+    );
+);
+
 /// `gen_many!(I, Iterable<V>, Fn(I,V)) => I -> Result<I,E>`
 /// Applies the generator `$f` to every element of `$l`, passing arguments by value.
 #[macro_export]
