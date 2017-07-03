@@ -626,6 +626,7 @@ macro_rules! gen_copy(
             }
         }
     );
+    ($i:expr, $val:expr, $l:expr) => ( gen_copy!(($i.0,$i.1), $val, $l) );
 );
 
 /// `gen_slice!(I, &[u8]) => I -> Result<I,E>`
@@ -633,6 +634,7 @@ macro_rules! gen_copy(
 #[macro_export]
 macro_rules! gen_slice(
     (($i:expr, $idx:expr), $val:expr) => ( gen_copy!(($i,$idx), $val, $val.len()) );
+    ($i:expr, $val:expr) => ( gen_copy!(($i.0,$i.1), $val, $val.len()) );
 );
 
 #[macro_export]
