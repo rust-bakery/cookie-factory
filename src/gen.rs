@@ -997,6 +997,20 @@ mod tests {
     }
 
     #[test]
+    fn test_gen_be_i32() {
+        let mut mem : [u8; 8] = [0; 8];
+        let expected = [0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0];
+        let r = gen_be_i32!((&mut mem,0), -1i32);
+        match r {
+            Ok((b,idx)) => {
+                assert_eq!(idx,4);
+                assert_eq!(b,&expected);
+            },
+            Err(e) => panic!("error {:?}",e),
+        }
+    }
+
+    #[test]
     fn test_gen_be_u64() {
         let mut mem : [u8; 8] = [0; 8];
         let expected = [1, 2, 3, 4, 5, 6, 7, 8];
