@@ -301,7 +301,7 @@ macro_rules! gen_be_u32(
 #[macro_export]
 macro_rules! gen_be_u64(
     (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 3 {
+        match $i.len() <= $idx + 7 {
             true  => Err(GenError::BufferTooSmall($idx+8)),
             false => {
                 let v = $val;
@@ -1020,6 +1020,28 @@ mod tests {
                 assert_eq!(idx,8);
                 assert_eq!(b,&expected);
             },
+            Err(e) => panic!("error {:?}",e),
+        }
+    }
+
+    #[test]
+    fn test_gen_be_u64_very_short_buffer() {
+        let mut mem : [u8; 3] = [0; 3];
+        let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
+        match r {
+            Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
+            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 8),
+            Err(e) => panic!("error {:?}",e),
+        }
+    }
+
+    #[test]
+    fn test_gen_be_u64_slightly_short_buffer() {
+        let mut mem : [u8; 7] = [0; 7];
+        let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
+        match r {
+            Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
+            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 8),
             Err(e) => panic!("error {:?}",e),
         }
     }
