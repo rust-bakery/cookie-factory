@@ -499,7 +499,7 @@ macro_rules! gen_le_u32(
 #[macro_export]
 macro_rules! gen_le_u64(
     (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 3 {
+        match $i.len() <= $idx + 7 {
             true  => Err(GenError::BufferTooSmall($idx+8)),
             false => {
                 let v = $val;
