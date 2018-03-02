@@ -418,7 +418,7 @@ macro_rules! gen_be_f64(
 /// Write an unsigned 1 byte integer.
 #[macro_export]
 macro_rules! gen_le_u8(
-    (($i:expr, $idx:expr), $val:expr) => ( gen_be_u8!(($i.0, $i.1), $val) );
+    (($i:expr, $idx:expr), $val:expr) => ( gen_be_u8!(($i, $idx), $val) );
     ($i:expr, $val:expr) => ( gen_be_u8!(($i.0, $i.1), $val) );
 );
 
@@ -986,6 +986,25 @@ mod tests {
             (s,0),
             gen_be_u8!(1) >>
             gen_be_u8!(2)
+        );
+        match r {
+            Ok((b,idx)) => {
+                assert_eq!(idx,2);
+                assert_eq!(b,&expected);
+            },
+            Err(e) => panic!("error {:?}",e),
+        }
+    }
+
+    #[test]
+    fn test_gen_le_u8() {
+        let mut mem : [u8; 8] = [0; 8];
+        let s = &mut mem[..];
+        let expected = [1, 2, 0, 0, 0, 0, 0, 0];
+        let r = do_gen!(
+            (s,0),
+            gen_le_u8!(1) >>
+            gen_le_u8!(2)
         );
         match r {
             Ok((b,idx)) => {
