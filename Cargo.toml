@@ -1,6 +1,6 @@
 [package]
 name = "cookie-factory"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Pierre Chifflier <chifflier@wzdftpd.net>"]
 license = "MIT"
 repository = "https://github.com/Geal/cookie-factory"
