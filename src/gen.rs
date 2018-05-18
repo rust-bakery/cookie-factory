@@ -619,7 +619,7 @@ macro_rules! gen_le_f64(
 macro_rules! gen_copy(
     (($i:expr, $idx:expr), $val:expr, $l:expr) => (
         match $i.len() < $idx+$l {
-            true  => Err(GenError::BufferTooSmall($idx+$l+1)),
+            true  => Err(GenError::BufferTooSmall($idx+$l)),
             false => {
                 $i[$idx..$idx+$l].clone_from_slice(&$val[0..$l]);
                 Ok(($i,($idx+$l)))
@@ -1151,6 +1151,27 @@ mod tests {
     }
 
     #[test]
+    fn test_gen_copy_buffer_too_small() {
+        let mut mem : [u8; 7] = [0; 7];
+        let s = &mut mem[..];
+        let v = [0, 1, 2, 3, 4, 5, 6, 7];
+        let r = gen_copy!((s, 0), v, v.len());
+        match r {
+            Ok(_) => {
+                panic!("buffer shouldn't have had enough space");
+            },
+            Err(GenError::BufferTooSmall(sz)) => {
+                if sz != v.len() {
+                    panic!("invalid max index returned, expected {} got {}", v.len(), sz);
+                }
+            },
+            Err(e) => {
+                panic!("error {:?}", e);
+            }
+        }
+    }
+
+    #[test]
     fn test_gen_slice() {
         let mut mem : [u8; 0] = [0; 0];
         let s = &mut mem[..];
@@ -1163,6 +1184,27 @@ mod tests {
                 assert_eq!(b,&expected);
             },
             Err(e) => panic!("error {:?}",e),
+        }
+    }
+
+    #[test]
+    fn test_gen_slice_buffer_too_small() {
+        let mut mem : [u8; 7] = [0; 7];
+        let s = &mut mem[..];
+        let v = [0, 1, 2, 3, 4, 5, 6, 7];
+        let r = gen_slice!((s, 0), v);
+        match r {
+            Ok(_) => {
+                panic!("buffer shouldn't have had enough space");
+            },
+            Err(GenError::BufferTooSmall(sz)) => {
+                if sz != v.len() {
+                    panic!("invalid max index returned, expected {} got {}", v.len(), sz);
+                }
+            },
+            Err(e) => {
+                panic!("error {:?}", e);
+            }
         }
     }
 
