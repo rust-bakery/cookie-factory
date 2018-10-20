@@ -920,6 +920,7 @@ macro_rules! gen_at_rel_offset(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::iter::repeat;
 
     #[test]
     fn test_do_gen() {
@@ -1045,7 +1046,8 @@ mod tests {
 
     #[test]
     fn test_gen_be_u64_very_short_buffer() {
-        let mut mem : [u8; 3] = [0; 3];
+        let mut mem = repeat(0).take(3).collect::<Vec<u8>>();
+
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
@@ -1056,7 +1058,7 @@ mod tests {
 
     #[test]
     fn test_gen_be_u64_slightly_short_buffer() {
-        let mut mem : [u8; 7] = [0; 7];
+        let mut mem = repeat(0).take(7).collect::<Vec<u8>>();
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
