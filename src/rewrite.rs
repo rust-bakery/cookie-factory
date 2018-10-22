@@ -277,13 +277,7 @@ pub fn gen_num(_b: &f64) -> impl Serializer {
 pub fn gen_array<'a>(arr: &'a [JsonValue]) -> impl Serializer + 'a {
   let sr = "[".raw();
 
-  Box::new(sr.then(
-    /*or(
-      if arr.len() == 0 {
-        Some(empty())
-      } else {
-        None
-      },*/
+  sr.then(
       or(
         if arr.len() == 1 {
           Some(gen_json_value(&arr[0]))
@@ -291,7 +285,6 @@ pub fn gen_array<'a>(arr: &'a [JsonValue]) -> impl Serializer + 'a {
           None
         },
         or(if arr.len() > 1 {
-        //    Some("TEST".raw())
             Some(gen_json_value(&arr[0])
               .then(All::new(arr.iter().map(|v| {
                 ",".raw().then(gen_json_value(v))
@@ -303,26 +296,19 @@ pub fn gen_array<'a>(arr: &'a [JsonValue]) -> impl Serializer + 'a {
           empty()
         )
       )
-    //)
     .then("]".raw())
-  ))
+  )
 }
 
 pub fn gen_object<'a>(o: &'a HashMap<String, JsonValue>) -> impl Serializer + 'a {
   let sr = "{".raw();
   let len = o.len();
 
-  Box::new(sr.then(
-    /*or(
-      if len == 0 {
-        Some("}".raw())
-      } else {
-        None
-      },*/
+  sr.then(
       or(
         if len == 1 {
           let first = o.iter().next().unwrap();
-          Some(gen_key_value(first))//.then("}".raw()))
+          Some(gen_key_value(first))
         } else {
           None
         },
@@ -334,17 +320,15 @@ pub fn gen_object<'a>(o: &'a HashMap<String, JsonValue>) -> impl Serializer + 'a
               .then(All::new(it.map(|v| {
                 ",".raw().then(gen_key_value(v))
               })))
-              //.then("}".raw()))
             )
           } else {
             None
           },
           empty()
         )
-      //)
       .then("}".raw())
     )
-  ))
+  )
 }
 
 pub fn gen_key_value<'a>(kv: (&'a String, &'a JsonValue)) -> impl Serializer + 'a {
