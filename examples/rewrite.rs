@@ -5,11 +5,8 @@ extern crate test;
 //#[macro_use]
 extern crate cookie_factory;
 
-use std::str;
 use std::iter::repeat;
-use std::collections::HashMap;
 
-use cookie_factory::*;
 use cookie_factory::rewrite::*;
 
 // from https://github.com/bluss/maplit

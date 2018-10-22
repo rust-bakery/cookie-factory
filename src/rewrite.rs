@@ -1,6 +1,5 @@
 
 use std::str;
-use std::iter::repeat;
 use std::collections::HashMap;
 
 use gen::GenError;
@@ -271,7 +270,7 @@ pub fn gen_bool(b: &bool) -> impl Serializer {
   }
 }
 
-pub fn gen_num(b: &f64) -> impl Serializer {
+pub fn gen_num(_b: &f64) -> impl Serializer {
   "1234.56".raw()
 }
 
@@ -372,6 +371,7 @@ macro_rules! hashmap {
 
 #[test]
 fn json_test() {
+  use std::iter::repeat;
   let value = JsonValue::Object(hashmap!{
     String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
     String::from("b") => JsonValue::Boolean(true),
