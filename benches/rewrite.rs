@@ -82,3 +82,43 @@ fn json_create_serializer_bench(b: &mut Bencher) {
     gen_json_value(&value)
   });
 }
+
+#[bench]
+fn gen_str_create_serializer_bench(b: &mut Bencher) {
+  let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+  let index = {
+    let mut sr = gen_str(&"hello");
+    let (index, result) = sr.serialize(&mut buffer).unwrap();
+
+    println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
+    //panic!();
+
+    index as u64
+  };
+
+  b.bytes = index;
+  b.iter(|| {
+    gen_str(&"hello")
+  });
+}
+
+#[bench]
+fn gen_str_bench(b: &mut Bencher) {
+  let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+  let index = {
+    let mut sr = gen_str(&"hello");
+    let (index, result) = sr.serialize(&mut buffer).unwrap();
+
+    println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
+    //panic!();
+
+    index as u64
+  };
+
+  b.bytes = index;
+  b.iter(|| {
+    let mut sr = gen_str(&"hello");
+    let (index, result) = sr.serialize(&mut buffer).unwrap();
+    index
+  });
+}
