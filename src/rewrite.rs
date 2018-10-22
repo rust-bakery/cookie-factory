@@ -164,20 +164,22 @@ impl<T: Serializer, It: Iterator<Item=T>> Serializer for All<T, It> {
     let mut index = 0;
 
     loop {
-      if self.current.is_none() {
-        self.current = self.it.next();
-        if self.current.is_none() {
-          return Ok((index, Serialized::Done));
+      let mut current = match self.current.take() {
+        Some(s) => s,
+        None => match self.it.next() {
+          Some(s) => s,
+          None => return Ok((index, Serialized::Done)),
         }
-      }
+      };
 
-      assert!(index <= output.len());
       let sl = &mut output[index..];
-      match self.current.as_mut().unwrap().serialize(sl)? {
-        (i, Serialized::Continue) => return Ok((index + i, Serialized::Continue)),
+      match current.serialize(sl)? {
+        (i, Serialized::Continue) => {
+          self.current = Some(current);
+          return Ok((index + i, Serialized::Continue));
+        },
         (i, Serialized::Done) => {
           index += i;
-          self.current = None;
         },
       }
     }
