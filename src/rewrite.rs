@@ -48,34 +48,31 @@ pub fn empty() -> EmptySerializer {
 
 #[derive(Debug)]
 pub struct StrSerializer<'a> {
-  value: &'a str,
-  index: usize,
+  value: &'a [u8],
 }
 
 impl<'a> StrSerializer<'a> {
   #[inline(always)]
   pub fn new(s: &'a str) -> StrSerializer<'a> {
     StrSerializer {
-      value: s,
-      index: 0,
+      value: s.as_bytes(),
     }
   }
 }
 
-//use std::cmp::min;
+use std::ptr;
 impl<'a> Serializer for StrSerializer<'a> {
   #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     let output_len = output.len();
-    let self_len = (&self.value.as_bytes()[self.index..]).len();
-    if self_len > output_len {
-      output.clone_from_slice(&self.value.as_bytes()[self.index..self.index+output_len]);
-      self.index += output_len;
-      Ok((output_len, Serialized::Continue))
-    } else {
-      (&mut output[..self_len]).clone_from_slice(&self.value.as_bytes()[self.index..]);
-      self.index = self.value.as_bytes().len();
+    let self_len = self.value.len();
+    if self_len <= output_len {
+      (&mut output[..self_len]).copy_from_slice(self.value);
       Ok((self_len, Serialized::Done))
+    } else {
+      output.copy_from_slice(&self.value[..output_len]);
+      self.value = &self.value[output_len..];
+      Ok((output_len, Serialized::Continue))
     }
   }
 }
