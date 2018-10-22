@@ -35,11 +35,13 @@ pub fn or<T,U>(t: Option<T>, u: U) -> Or<T, U>
 pub struct EmptySerializer;
 
 impl Serializer for EmptySerializer {
+  #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, _output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     Ok((0, Serialized::Done))
   }
 }
 
+#[inline(always)]
 pub fn empty() -> EmptySerializer {
   EmptySerializer
 }
@@ -51,6 +53,7 @@ pub struct StrSerializer<'a> {
 }
 
 impl<'a> StrSerializer<'a> {
+  #[inline(always)]
   pub fn new(s: &'a str) -> StrSerializer<'a> {
     StrSerializer {
       value: s,
@@ -61,6 +64,7 @@ impl<'a> StrSerializer<'a> {
 
 //use std::cmp::min;
 impl<'a> Serializer for StrSerializer<'a> {
+  #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     let output_len = output.len();
     let self_len = (&self.value.as_bytes()[self.index..]).len();
@@ -77,6 +81,7 @@ impl<'a> Serializer for StrSerializer<'a> {
 }
 
 impl<S: ?Sized + Serializer> Serializer for Box<S> {
+  #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     (**self).serialize(output)
   }
@@ -89,6 +94,7 @@ pub struct Then<A, B> {
 }
 
 impl<A:Serializer, B:Serializer> Then<A, B> {
+  #[inline(always)]
   pub fn new(a: A, b: B) -> Self {
     Then {
       a,
@@ -99,6 +105,7 @@ impl<A:Serializer, B:Serializer> Then<A, B> {
 }
 
 impl<A:Serializer, B:Serializer> Serializer for Then<A,B> {
+  #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     let mut i = 0;
     if !self.first_done {
@@ -122,6 +129,7 @@ pub struct Or<A, B> {
 }
 
 impl<A:Serializer, B:Serializer> Or<A, B> {
+  #[inline(always)]
   pub fn new(a: Option<A>, b: B) -> Self {
     Or {
       a,
@@ -131,6 +139,7 @@ impl<A:Serializer, B:Serializer> Or<A, B> {
 }
 
 impl<A:Serializer, B:Serializer> Serializer for Or<A,B> {
+  #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     match &mut self.a {
       Some(ref mut a) => a.serialize(output),
@@ -184,6 +193,7 @@ pub trait StrSr {
 }
 
 impl<S: AsRef<str>> StrSr for S {
+  #[inline(always)]
   fn raw<'a>(&'a self) -> StrSerializer<'a> {
     StrSerializer::new(self.as_ref())
   }
