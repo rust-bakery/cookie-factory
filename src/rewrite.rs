@@ -13,6 +13,7 @@ pub enum Serialized {
 pub trait Serializer {
   fn serialize(&mut self, output: &mut [u8]) -> Result<(usize, Serialized), GenError>;
 
+  #[inline(always)]
   fn then<T>(self, next: T) -> Then<Self, T>
     where
       Self: Sized,
@@ -151,6 +152,7 @@ pub struct All<T,It> {
 }
 
 impl<T: Serializer, It: Iterator<Item=T>> All<T, It> {
+  #[inline(always)]
   pub fn new<IntoIt: IntoIterator<Item=T, IntoIter=It>>(it: IntoIt) -> Self {
     All {
       current: None,
