@@ -363,7 +363,7 @@ fn json_test() {
 
   println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
   assert_eq!(str::from_utf8(&buffer[..index]).unwrap(),
-    "{\"arr\":[1234.56,1234.56,1234.56,1234.56],\"b\":true,\"o\":{\"empty\":[],\"x\":\"abcd\",\"y\":\"efgh\"}}");
+    "{\"arr\":[1234.56,1234.56,1234.56],\"b\":true,\"o\":{\"empty\":[],\"x\":\"abcd\",\"y\":\"efgh\"}}");
   //panic!();
 }
 
