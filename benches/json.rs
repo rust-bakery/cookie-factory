@@ -197,16 +197,17 @@ fn json_bench(b: &mut Bencher) {
   let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
 
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-  let ptr = {
+  let index = {
     let (buf, index) = gen_json_value((&mut buffer, 0), &value).unwrap();
 
     println!("result:\n{}", str::from_utf8(buf).unwrap());
     //panic!();
 
-    buf.as_ptr() as u64
+    index as u64
   };
 
-  b.bytes = ptr - (&buffer).as_ptr() as u64;
+  println!("wrote {} bytes", index);
+  b.bytes = index;
   b.iter(|| {
     let res = gen_json_value((&mut buffer, 0), &value).unwrap();
     res.1
