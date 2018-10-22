@@ -277,58 +277,36 @@ pub fn gen_num(_b: &f64) -> impl Serializer {
 pub fn gen_array<'a>(arr: &'a [JsonValue]) -> impl Serializer + 'a {
   let sr = "[".raw();
 
-  sr.then(
-      or(
-        if arr.len() == 1 {
-          Some(gen_json_value(&arr[0]))
-        } else {
-          None
-        },
-        or(if arr.len() > 1 {
-            Some(gen_json_value(&arr[0])
-              .then(All::new(arr.iter().map(|v| {
-                ",".raw().then(gen_json_value(v))
-              })))
-            )
-          } else {
-            None
-          },
-          empty()
-        )
-      )
-    .then("]".raw())
-  )
+  sr.then(or(
+      if arr.len() > 0 {
+        Some(gen_json_value(&arr[0]))
+      } else {
+        None
+      },
+      empty()
+      )).then(All::new(arr.iter().skip(1).map(|v| {
+    ",".raw().then(gen_json_value(v))
+  })))
+  .then("]".raw())
 }
 
 pub fn gen_object<'a>(o: &'a HashMap<String, JsonValue>) -> impl Serializer + 'a {
   let sr = "{".raw();
   let len = o.len();
 
-  sr.then(
-      or(
-        if len == 1 {
-          let first = o.iter().next().unwrap();
-          Some(gen_key_value(first))
-        } else {
-          None
-        },
-        or(
-          if len > 1 {
-            let mut it = o.iter();
-            let first = it.next().unwrap();
-            Some(gen_key_value(first)
-              .then(All::new(it.map(|v| {
-                ",".raw().then(gen_key_value(v))
-              })))
-            )
-          } else {
-            None
-          },
-          empty()
-        )
-      .then("}".raw())
-    )
-  )
+  let mut iter = o.iter();
+  sr.then(or(
+      if len > 0 {
+        let first = iter.next().unwrap();
+        Some(gen_key_value(first))
+      } else {
+        None
+      },
+      empty()
+  )).then(All::new(iter.map(|v| {
+    ",".raw().then(gen_key_value(v))
+  })))
+  .then("}".raw())
 }
 
 pub fn gen_key_value<'a>(kv: (&'a String, &'a JsonValue)) -> impl Serializer + 'a {
