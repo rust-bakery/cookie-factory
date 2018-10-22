@@ -266,7 +266,7 @@ pub enum JsonValueSerializer {
   Object(HashMap<String, JsonValue>),
 }
 
-
+#[inline(always)]
 pub fn gen_str<'a, S: AsRef<str>>(s: &'a S) -> impl Serializer + 'a {
   "\"".raw()
     .then(s.raw())
