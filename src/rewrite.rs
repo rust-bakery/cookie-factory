@@ -168,13 +168,12 @@ impl<T: Serializer, It: Iterator<Item=T>> Serializer for All<T, It> {
 
       assert!(index <= output.len());
       let sl = &mut output[index..];
-      match self.current.as_mut().unwrap().serialize(sl) {
-        Ok((i, Serialized::Continue)) => return Ok((index + i, Serialized::Continue)),
-        Ok((i, Serialized::Done)) => {
+      match self.current.as_mut().unwrap().serialize(sl)? {
+        (i, Serialized::Continue) => return Ok((index + i, Serialized::Continue)),
+        (i, Serialized::Done) => {
           index += i;
           self.current = None;
         },
-        Err(e) => return Err(e),
       }
     }
   }
