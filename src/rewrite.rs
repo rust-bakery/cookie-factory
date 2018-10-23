@@ -86,18 +86,16 @@ impl<S: ?Sized + Serializer> Serializer for Box<S> {
 }
 
 pub struct Then<A, B> {
-  a: A,
+  a: Option<A>,
   b: B,
-  first_done: bool,
 }
 
 impl<A:Serializer, B:Serializer> Then<A, B> {
   #[inline(always)]
   pub fn new(a: A, b: B) -> Self {
     Then {
-      a,
+      a: Some(a),
       b,
-      first_done: false,
     }
   }
 }
@@ -106,11 +104,13 @@ impl<A:Serializer, B:Serializer> Serializer for Then<A,B> {
   #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     let mut i = 0;
-    if !self.first_done {
-      match self.a.serialize(output)? {
-        (index, Serialized::Continue) => return Ok((index, Serialized::Continue)),
+    if let Some(mut a) = self.a.take() {
+      match a.serialize(output)? {
+        (index, Serialized::Continue) => {
+          self.a = Some(a);
+          return Ok((index, Serialized::Continue))
+        },
         (index, Serialized::Done) => {
-          self.first_done = true;
           i = index;
         }
       }
