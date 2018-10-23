@@ -121,6 +121,151 @@ impl<A:Serializer, B:Serializer> Serializer for Then<A,B> {
   }
 }
 
+#[macro_export]
+macro_rules! seq_ser (
+  ($it:tt, $serializers:expr, $index:ident, $output:ident, $e:expr, $($elem:expr),*) => {
+    if let Some(mut ser) = tup!($it, $serializers).take() {
+      match ser.serialize(&mut $output[$index..])? {
+        (i, Serialized::Continue) => {
+          tup!($it, $serializers) = Some(ser);
+          return Ok(($index + i, Serialized::Continue))
+        },
+        (i, Serialized::Done) => {
+          $index += i;
+        }
+      }
+    }
+
+    succ!($it, seq_ser!($serializers, $index, $output, $($elem),*))
+  };
+  ($it:tt, $serializers:expr, $index:ident, $output:ident, $e:expr) => {
+    if let Some(mut ser) = tup!($it, $serializers).take() {
+      match ser.serialize(&mut $output[$index..])? {
+        (i, Serialized::Continue) => {
+          tup!($it, $serializers) = Some(ser);
+          return Ok(($index + i, Serialized::Continue))
+        },
+        (i, Serialized::Done) => {
+          $index += i;
+        }
+      }
+    }
+
+    return Ok(($index, Serialized::Done));
+  };
+);
+
+#[macro_export]
+macro_rules! seq (
+  ($($elem:expr),*, $output: ident) => (
+    {
+      use ::std::result::Result::*;
+      use ::std::option::Option::*;
+
+      let mut res = sequence_init!((), $($elem:expr),*);
+
+      let mut i = 0;
+      seq_ser!(0, res, i, $output, $($elem:expr),*)
+    }
+  );
+);
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! sequence_init (
+  ((), $e:expr, $($rest:tt)*) => (
+    sequence_init!((Some($e)), $($rest)*)
+  );
+
+  (($($parsed:expr),*), $e:expr, $($rest:tt)*) => (
+    sequence_init!(($($parsed),* , Some($e)), $($rest)*);
+  );
+
+  (($($parsed:expr),*), $e:expr) => (
+    ($($parsed),* , Some($e))
+  );
+  (($($parsed:expr),*),) => (
+    ($($parsed),*)
+  );
+);
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! succ (
+  (0, $submac:ident ! ($($rest:tt)*)) => ($submac!(1, $($rest)*));
+  (1, $submac:ident ! ($($rest:tt)*)) => ($submac!(2, $($rest)*));
+  (2, $submac:ident ! ($($rest:tt)*)) => ($submac!(3, $($rest)*));
+  (3, $submac:ident ! ($($rest:tt)*)) => ($submac!(4, $($rest)*));
+  (4, $submac:ident ! ($($rest:tt)*)) => ($submac!(5, $($rest)*));
+  (5, $submac:ident ! ($($rest:tt)*)) => ($submac!(6, $($rest)*));
+  (6, $submac:ident ! ($($rest:tt)*)) => ($submac!(7, $($rest)*));
+  (7, $submac:ident ! ($($rest:tt)*)) => ($submac!(8, $($rest)*));
+  (8, $submac:ident ! ($($rest:tt)*)) => ($submac!(9, $($rest)*));
+  (9, $submac:ident ! ($($rest:tt)*)) => ($submac!(10, $($rest)*));
+  (10, $submac:ident ! ($($rest:tt)*)) => ($submac!(11, $($rest)*));
+  (11, $submac:ident ! ($($rest:tt)*)) => ($submac!(12, $($rest)*));
+  (12, $submac:ident ! ($($rest:tt)*)) => ($submac!(13, $($rest)*));
+  (13, $submac:ident ! ($($rest:tt)*)) => ($submac!(14, $($rest)*));
+  (14, $submac:ident ! ($($rest:tt)*)) => ($submac!(15, $($rest)*));
+  (15, $submac:ident ! ($($rest:tt)*)) => ($submac!(16, $($rest)*));
+  (16, $submac:ident ! ($($rest:tt)*)) => ($submac!(17, $($rest)*));
+  (17, $submac:ident ! ($($rest:tt)*)) => ($submac!(18, $($rest)*));
+  (18, $submac:ident ! ($($rest:tt)*)) => ($submac!(19, $($rest)*));
+  (19, $submac:ident ! ($($rest:tt)*)) => ($submac!(20, $($rest)*));
+);
+
+// HACK: for some reason, Rust 1.11 does not accept $res.$it in
+// permutation_unwrap. This is a bit ugly, but it will have no
+// impact on the generated code
+#[doc(hidden)]
+#[macro_export]
+macro_rules! tup (
+  (0, $tup:expr) => ($tup.0);
+  (1, $tup:expr) => ($tup.1);
+  (2, $tup:expr) => ($tup.2);
+  (3, $tup:expr) => ($tup.3);
+  (4, $tup:expr) => ($tup.4);
+  (5, $tup:expr) => ($tup.5);
+  (6, $tup:expr) => ($tup.6);
+  (7, $tup:expr) => ($tup.7);
+  (8, $tup:expr) => ($tup.8);
+  (9, $tup:expr) => ($tup.9);
+  (10, $tup:expr) => ($tup.10);
+  (11, $tup:expr) => ($tup.11);
+  (12, $tup:expr) => ($tup.12);
+  (13, $tup:expr) => ($tup.13);
+  (14, $tup:expr) => ($tup.14);
+  (15, $tup:expr) => ($tup.15);
+  (16, $tup:expr) => ($tup.16);
+  (17, $tup:expr) => ($tup.17);
+  (18, $tup:expr) => ($tup.18);
+);
+
+pub struct Then3<A, B, C> {
+  pub serializers: (Option<A>, Option<B>, Option<C>),
+}
+
+impl<A: Serializer, B: Serializer, C: Serializer> Serializer for Then3<A, B, C> {
+  #[inline(always)]
+  fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
+    let mut i = 0;
+    seq_ser!(0, self.serializers, i, output, 1, 2, 3);
+  }
+}
+
+pub struct Then4<A, B, C, D> {
+  pub serializers: (Option<A>, Option<B>, Option<C>, Option<D>),
+}
+
+impl<A: Serializer, B: Serializer, C: Serializer, D: Serializer> Serializer for Then4<A, B, C, D> {
+  #[inline(always)]
+  fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
+    let mut i = 0;
+    seq_ser!(0, self.serializers, i, output, 1, 2, 3, 4);
+  }
+}
+
+
 pub struct Or<A, B> {
   a: Option<A>,
   b: B,
