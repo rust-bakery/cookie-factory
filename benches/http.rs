@@ -96,3 +96,32 @@ fn rw_http_create_serializer_bench(b: &mut Bencher) {
     rw_request(&request)
   });
 }
+
+#[bench]
+fn rw_http_partial_bench(b: &mut Bencher) {
+  let request = Request {
+    method: "GET",
+    uri: "/hello/test/a/b/c?name=value#hash",
+    headers: [
+      Header { name: "Host", value: "lolcatho.st" },
+      Header { name: "User-agent", value: "cookie-factory" },
+      Header { name: "Content-Length", value: "13" },
+      Header { name: "Connection", value: "Close" },
+    ].iter().cloned().collect(),
+    body: b"Hello, world!",
+  };
+
+  let mut buffer = repeat(0).take(100).collect::<Vec<u8>>();
+  b.bytes = 149;
+
+  b.iter(|| {
+    let mut sr = rw_request(&request);
+    let (i, res) = sr.serialize(&mut buffer).unwrap();
+    assert_eq!(i, 100);
+    assert_eq!(res, Serialized::Continue);
+    let (i, res) = sr.serialize(&mut buffer).unwrap();
+    assert_eq!(i, 49);
+    assert_eq!(res, Serialized::Done);
+  });
+}
+
