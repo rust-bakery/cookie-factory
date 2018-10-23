@@ -48,21 +48,21 @@ pub fn empty() -> EmptySerializer {
 }
 
 #[derive(Debug)]
-pub struct StrSerializer<'a> {
+pub struct SliceSerializer<'a> {
   value: &'a [u8],
 }
 
-impl<'a> StrSerializer<'a> {
+impl<'a> SliceSerializer<'a> {
   #[inline(always)]
-  pub fn new(s: &'a str) -> StrSerializer<'a> {
-    StrSerializer {
-      value: s.as_bytes(),
+  pub fn new(s: &'a [u8]) -> SliceSerializer<'a> {
+    SliceSerializer {
+      value: s,
     }
   }
 }
 
 use std::ptr;
-impl<'a> Serializer for StrSerializer<'a> {
+impl<'a> Serializer for SliceSerializer<'a> {
   #[inline(always)]
   fn serialize<'b, 'c>(&'c mut self, output: &'b mut [u8]) -> Result<(usize, Serialized), GenError> {
     let output_len = output.len();
@@ -187,23 +187,27 @@ impl<T: Serializer, It: Iterator<Item=T>> Serializer for All<T, It> {
     }
   }
 }
-
+ 
+#[inline(always)]
+pub fn all<T: Serializer, It: Iterator<Item=T>, IntoIt: IntoIterator<Item=T, IntoIter=It>>(it: IntoIt) -> All<T, It> {
+  All::new(it)
+}
 
 pub trait StrSr {
-  fn raw<'a>(&'a self) -> StrSerializer<'a>;
+  fn raw<'a>(&'a self) -> SliceSerializer<'a>;
 }
 
 impl<S: AsRef<str>> StrSr for S {
   #[inline(always)]
-  fn raw<'a>(&'a self) -> StrSerializer<'a> {
-    StrSerializer::new(self.as_ref())
+  fn raw<'a>(&'a self) -> SliceSerializer<'a> {
+    SliceSerializer::new(self.as_ref().as_bytes())
   }
 }
 
 #[test]
 fn str_serializer() {
   let s = String::from("hello world!");
-  let mut sr = StrSerializer::new(s.as_str());
+  let mut sr = SliceSerializer::new(s.as_str().as_bytes());
 
   let mut mem: [u8; 6] = [0; 6];
   let s = &mut mem[..];
@@ -218,7 +222,7 @@ fn str_serializer() {
 #[test]
 fn then_serializer() {
   let s1 = String::from("hello ");
-  let sr1 = StrSerializer::new(s1.as_str());
+  let sr1 = SliceSerializer::new(s1.as_str().as_bytes());
 
   let s2 = String::from("world!");
   let sr2 = s2.raw();//StrSerializer::new(s2.as_str());
