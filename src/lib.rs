@@ -10,3 +10,4 @@ pub use gen::*;
 #[macro_use] mod gen;
 
 pub mod rewrite;
+pub mod http;
