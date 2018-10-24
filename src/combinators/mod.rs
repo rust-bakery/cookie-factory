@@ -1,4 +1,5 @@
 use gen::GenError;
+use std::collections::VecDeque;
 
 mod text;
 mod binary;
@@ -269,6 +270,50 @@ impl<T: Serializer, U: Serializer+Reset, It: Iterator<Item=T>> Serializer for Se
   }
 }
 
+pub struct Stream<T> {
+  queue: VecDeque<T>,
+}
+
+impl<T:Serializer> Stream<T> {
+  #[inline(always)]
+  pub fn new() -> Self {
+    Stream {
+      queue: VecDeque::new(),
+    }
+  }
+
+  pub fn from_iter<It: Iterator<Item=T>>(it: It) -> Self {
+    Stream {
+      queue: it.collect(),
+    }
+  }
+
+  pub fn push(&mut self, t: T) {
+    self.queue.push_back(t);
+  }
+}
+
+impl<T:Serializer> Serializer for Stream<T> {
+  #[inline(always)]
+  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
+    let mut index = 0;
+
+    loop {
+      match self.queue.front_mut() {
+        None => return Ok((index, Serialized::Done)),
+        Some(s) => match s.serialize(&mut output[index..])? {
+          (i, Serialized::Continue) => return Ok((index+i, Serialized::Continue)),
+          (i, Serialized::Done) => {
+            index += i;
+          }
+        }
+      }
+
+      self.queue.pop_front();
+    }
+  }
+}
+
 impl Serializer for Fn(&mut [u8]) -> Result<(&mut [u8],usize),GenError> {
   fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
     match self(output) {
@@ -333,5 +378,26 @@ mod tests {
     assert_eq!(from_utf8(&s[..20]).unwrap(), "hello, world, hello ");
     assert_eq!(three_element_list_partial.serialize(&mut s[20..]), Ok((5, Serialized::Done)));
     assert_eq!(from_utf8(&s[..26]).unwrap(), "hello, world, hello again\0");
+  }
+
+  #[test]
+  fn stream() {
+    let mut mem: [u8; 100] = [0; 100];
+    let s = &mut mem[..];
+
+    let mut stream = Stream::from_iter(["hello ", "world! ", "hello again! "].iter().map(|s| s.raw()));
+    assert_eq!(stream.serialize(&mut s[..7]), Ok((7, Serialized::Continue)));
+    assert_eq!(from_utf8(&s[..7]).unwrap(), "hello w");
+
+    stream.push("hi there!".raw());
+
+    assert_eq!(stream.serialize(&mut s[7..20]), Ok((13, Serialized::Continue)));
+    assert_eq!(from_utf8(&s[..20]).unwrap(), "hello world! hello a");
+
+    assert_eq!(stream.serialize(&mut s[20..28]), Ok((8, Serialized::Continue)));
+    assert_eq!(from_utf8(&s[..28]).unwrap(), "hello world! hello again! hi");
+
+    assert_eq!(stream.serialize(&mut s[28..]), Ok((7, Serialized::Done)));
+    assert_eq!(from_utf8(&s[..35]).unwrap(), "hello world! hello again! hi there!");
   }
 }
