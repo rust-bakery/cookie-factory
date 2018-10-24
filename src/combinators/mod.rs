@@ -91,8 +91,8 @@ impl<S: ?Sized + Serializer> Serializer for Box<S> {
 }
 
 pub struct Then<A, B> {
-  a: Option<A>,
-  b: B,
+  pub a: Option<A>,
+  pub b: B,
 }
 
 impl<A:Serializer, B:Serializer> Then<A, B> {

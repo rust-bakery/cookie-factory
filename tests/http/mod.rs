@@ -65,3 +65,28 @@ pub fn rw_header<'a>(h: &'a Header) -> impl Serializer + 'a {
     .then(h.value.raw()
     .then("\r\n".raw()))
 }
+
+#[derive(Debug,Clone,PartialEq)]
+pub struct RequestHeaders<'a> {
+  pub method: &'a str,
+  pub uri: &'a str,
+  pub headers: Vec<Header<'a>>,
+}
+
+pub fn rw_request_headers<'a, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl Serializer + 'a {
+  rw_request_line(&r.method, &r.uri)
+    .then(all(r.headers.iter().map(rw_header)))
+    .then("\r\n".raw())
+}
+
+pub fn chunk<'a>(slice: &'a[u8]) -> impl Serializer + 'a {
+  (slice.len()).hex()
+    .then("\r\n".raw())
+    .then(Slice::new(slice))
+    .then("\r\n".raw())
+}
+
+pub fn chunked_request<'a, 'b: 'a, T: Serializer + 'a>(r: &'b RequestHeaders<'a>) -> Then<impl Serializer + 'a, Stream<T>> {
+  let s: Stream<T> = Stream::new();
+  rw_request_headers(r).then(s)
+}
