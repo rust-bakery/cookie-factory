@@ -1,12 +1,13 @@
-//#![feature(trace_macros)]
 #![feature(test)]
 extern crate test;
 #[macro_use]
 extern crate cookie_factory;
+#[macro_use]
+extern crate maplit;
 
 use std::str;
 use std::iter::repeat;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use cookie_factory::*;
 use test::Bencher;
@@ -17,7 +18,7 @@ pub enum JsonValue {
   Boolean(bool),
   Num(f64),
   Array(Vec<JsonValue>),
-  Object(HashMap<String, JsonValue>),
+  Object(BTreeMap<String, JsonValue>),
 }
 
 pub fn gen_json_value<'a>(x:(&'a mut [u8],usize), g:&JsonValue) -> Result<(&'a mut [u8],usize),GenError> {
@@ -74,7 +75,7 @@ pub fn gen_array_element<'a>(x:(&'a mut [u8],usize), val: &JsonValue) -> Result<
   )
 }
 
-pub fn gen_object<'a>(x:(&'a mut [u8],usize), o:&HashMap<String, JsonValue>) -> Result<(&'a mut [u8],usize),GenError> {
+pub fn gen_object<'a>(x:(&'a mut [u8],usize), o:&BTreeMap<String, JsonValue>) -> Result<(&'a mut [u8],usize),GenError> {
   let mut output = gen_slice!(x, &b"{"[..])?;
   let mut it = o.iter();
 
@@ -101,93 +102,13 @@ pub fn gen_object_element<'a>(x:(&'a mut [u8],usize), key: &String, value:&JsonV
     gen_call!(gen_json_value, value)
   )
 }
-/*
-named!(float<f32>, flat_map!(recognize_float, parse_to!(f32)));
-
-//FIXME: verify how json strings are formatted
-named!(
-  string<&str>,
-  delimited!(
-    char!('\"'),
-    map_res!(
-      escaped!(call!(alphanumeric), '\\', one_of!("\"n\\")),
-      str::from_utf8
-    ),
-    //map_res!(escaped!(take_while1!(is_alphanumeric), '\\', one_of!("\"n\\")), str::from_utf8),
-    char!('\"')
-  )
-);
-
-named!(
-  boolean<bool>,
-  alt!(value!(false, tag!("false")) | value!(true, tag!("true")))
-);
-
-named!(
-  array<Vec<JsonValue>>,
-  ws!(delimited!(
-    char!('['),
-    separated_list!(char!(','), value),
-    char!(']')
-  ))
-);
-
-named!(
-  key_value<(&str, JsonValue)>,
-  ws!(separated_pair!(string, char!(':'), value))
-);
-
-named!(
-  hash<HashMap<String, JsonValue>>,
-  ws!(map!(
-    delimited!(
-      char!('{'),
-      separated_list!(char!(','), key_value),
-      char!('}')
-    ),
-    |tuple_vec| tuple_vec
-      .into_iter()
-      .map(|(k, v)| (String::from(k), v))
-      .collect()
-  ))
-);
-
-named!(
-  value<JsonValue>,
-  ws!(alt!(
-      hash    => { |h| JsonValue::Object(h)            } |
-      array   => { |v| JsonValue::Array(v)             } |
-      string  => { |s| JsonValue::Str(String::from(s)) } |
-      float   => { |f| JsonValue::Num(f)               } |
-      boolean => { |b| JsonValue::Boolean(b)           }
-    ))
-);
-*/
-
-// from https://github.com/bluss/maplit
-macro_rules! hashmap {
-    (@single $($x:tt)*) => (());
-    (@count $($rest:expr),*) => (<[()]>::len(&[$(hashmap!(@single $rest)),*]));
-
-    ($($key:expr => $value:expr,)+) => { hashmap!($($key => $value),+) };
-    ($($key:expr => $value:expr),*) => {
-        {
-            let _cap = hashmap!(@count $($key),*);
-            let mut _map = ::std::collections::HashMap::with_capacity(_cap);
-            $(
-                let _ = _map.insert($key, $value);
-            )*
-            _map
-        }
-    };
-}
 
 #[bench]
-fn json_bench(b: &mut Bencher) {
-  let element = JsonValue::Object(hashmap!{
+fn macros_json(b: &mut Bencher) {
+  let element = JsonValue::Object(btreemap!{
     String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
     String::from("b") => JsonValue::Boolean(true),
-    String::from("o") => JsonValue::Object(hashmap!{
+    String::from("o") => JsonValue::Object(btreemap!{
       String::from("x") => JsonValue::Str(String::from("abcd")),
       String::from("y") => JsonValue::Str(String::from("efgh")),
       String::from("empty") => JsonValue::Array(vec![]),
@@ -215,7 +136,7 @@ fn json_bench(b: &mut Bencher) {
 }
 
 #[bench]
-fn gen_str_bench(b: &mut Bencher) {
+fn macros_gen_str(b: &mut Bencher) {
 
   let value = String::from("hello");
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();

@@ -12,3 +12,6 @@ keywords = ["encoding", "serialization", "nom"]
 
 [badges]
 travis-ci = { repository = "Geal/cookie-factory" }
+
+[dev-dependencies]
+maplit = "^1.0"
