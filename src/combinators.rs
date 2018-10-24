@@ -54,6 +54,31 @@ pub fn empty() -> Empty {
 }
 
 #[derive(Debug)]
+pub struct Skip(usize);
+
+impl Serializer for Skip {
+  #[inline(always)]
+  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
+    if output.len() < self.0 {
+      Ok((0, Serialized::Continue))
+    } else {
+      Ok((self.0, Serialized::Done))
+    }
+  }
+}
+
+impl Reset for Skip {
+  fn reset(&mut self) -> bool {
+    true
+  }
+}
+
+#[inline(always)]
+pub fn skip(sz: usize) -> Skip {
+  Skip(sz)
+}
+
+#[derive(Debug)]
 pub struct Slice<'a> {
   value: &'a [u8],
   index: usize,
