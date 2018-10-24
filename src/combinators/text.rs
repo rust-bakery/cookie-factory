@@ -42,6 +42,32 @@ impl<'a, T: fmt::Display> PrintSr<'a> for T {
   }
 }
 
+pub struct PrintUpperHex<'a, T> {
+  value: &'a T,
+}
+
+impl<'a, T: fmt::Display + fmt::UpperHex> Serializer for PrintUpperHex<'a, T> {
+  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
+    let mut c = Cursor::new(output);
+    match write!(&mut c, "{:X}", self.value) {
+      //FIXME: maybe return an error here instead of assuming the buffer is too small?
+      Err(_) => Ok((0, Serialized::Continue)),
+      Ok(_) => Ok((c.position() as usize, Serialized::Done))
+    }
+  }
+}
+
+pub trait PrintUpperHexSr<'a>: Sized {
+  fn hex(&'a self) -> PrintUpperHex<'a, Self>;
+}
+
+impl<'a, T: fmt::Display + fmt::UpperHex> PrintUpperHexSr<'a> for T {
+  #[inline(always)]
+  fn hex(&'a self) -> PrintUpperHex<'a, T> {
+    PrintUpperHex { value: self }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -83,7 +109,15 @@ mod tests {
     let f2 = 1234.56e-2f64;
     assert_eq!(f2.print().serialize(s), Ok((7, Serialized::Done)));
     assert_eq!(from_utf8(&s[..7]).unwrap(), "12.3456");
-
   }
 
+  #[test]
+  fn print_hex_serializer() {
+    let mut mem: [u8; 100] = [0; 100];
+    let s = &mut mem[..];
+
+    let num = 257;
+    assert_eq!(num.hex().serialize(s), Ok((3, Serialized::Done)));
+    assert_eq!(from_utf8(&s[..3]).unwrap(), "101");
+  }
 }
