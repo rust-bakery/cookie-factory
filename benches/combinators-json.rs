@@ -51,38 +51,19 @@ pub fn gen_num(_b: &f64) -> impl Serializer {
 }
 
 pub fn gen_array<'a>(arr: &'a [JsonValue]) -> impl Serializer + 'a {
-  let sr = "[".raw();
-
-  sr.then(or(
-      if arr.len() > 0 {
-        Some(gen_json_value(&arr[0]))
-      } else {
-        None
-      },
-      empty()
-      )).then(All::new(arr.iter().skip(1).map(|v| {
-    ",".raw().then(gen_json_value(v))
-  })))
-  .then("]".raw())
+  "[".raw()
+    .then(SeparatedList::new(
+        ",".raw(),
+        arr.iter().map(gen_json_value)))
+    .then("]".raw())
 }
 
 pub fn gen_object<'a>(o: &'a BTreeMap<String, JsonValue>) -> impl Serializer + 'a {
-  let sr = "{".raw();
-  let len = o.len();
-
-  let mut iter = o.iter();
-  sr.then(or(
-      if len > 0 {
-        let first = iter.next().unwrap();
-        Some(gen_key_value(first))
-      } else {
-        None
-      },
-      empty()
-  )).then(All::new(iter.map(|v| {
-    ",".raw().then(gen_key_value(v))
-  })))
-  .then("}".raw())
+  "{".raw()
+    .then(SeparatedList::new(
+        ",".raw(),
+        o.iter().map(gen_key_value)))
+    .then("}".raw())
 }
 
 pub fn gen_key_value<'a>(kv: (&'a String, &'a JsonValue)) -> impl Serializer + 'a {

@@ -55,7 +55,7 @@ pub fn rw_request<'a, 'b: 'a>(r: &'b Request<'a>) -> impl Serializer + 'a {
   rw_request_line(&r.method, &r.uri)
     .then(all(r.headers.iter().map(rw_header)))
     .then("\r\n".raw())
-    .then(SliceSerializer::new(&r.body))
+    .then(Slice::new(&r.body))
 }
 
 //#[inline(always)]
