@@ -42,11 +42,11 @@ impl<'a, T: fmt::Display> PrintSr<'a> for T {
   }
 }
 
-pub struct PrintUpperHex<'a, T> {
-  value: &'a T,
+pub struct PrintUpperHex<T> {
+  value: T,
 }
 
-impl<'a, T: fmt::Display + fmt::UpperHex> Serializer for PrintUpperHex<'a, T> {
+impl<T: fmt::Display + fmt::UpperHex> Serializer for PrintUpperHex<T> {
   fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
     let mut c = Cursor::new(output);
     match write!(&mut c, "{:X}", self.value) {
@@ -57,13 +57,13 @@ impl<'a, T: fmt::Display + fmt::UpperHex> Serializer for PrintUpperHex<'a, T> {
   }
 }
 
-pub trait PrintUpperHexSr<'a>: Sized {
-  fn hex(&'a self) -> PrintUpperHex<'a, Self>;
+pub trait PrintUpperHexSr: Sized + Copy {
+  fn hex(self) -> PrintUpperHex<Self>;
 }
 
-impl<'a, T: fmt::Display + fmt::UpperHex> PrintUpperHexSr<'a> for T {
+impl<T: fmt::Display + fmt::UpperHex + Copy> PrintUpperHexSr for T {
   #[inline(always)]
-  fn hex(&'a self) -> PrintUpperHex<'a, T> {
+  fn hex(self) -> PrintUpperHex<T> {
     PrintUpperHex { value: self }
   }
 }
