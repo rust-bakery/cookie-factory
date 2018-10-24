@@ -40,6 +40,44 @@ impl<'a> Reset for Slice<'a> {
   }
 }
 
+pub struct LengthValue<A, B> {
+  skip: usize,
+  length: fn(usize) -> A,
+  value: B,
+}
+
+impl<A:Serializer, B:Serializer> LengthValue<A, B> {
+  #[inline(always)]
+  pub fn new<U>(skip: U, length: fn(usize) -> A, value: B) -> Self
+    where usize: From<U> {
+    LengthValue {
+      skip: usize::from(skip),
+      length,
+      value,
+    }
+  }
+}
+
+impl<A:Serializer, B:Serializer> Serializer for LengthValue<A,B> {
+  #[inline(always)]
+  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
+    match self.value.serialize(&mut output[self.skip..])? {
+      // we need to write the full length/value structure at once
+      (_, Serialized::Continue) => Ok((0, Serialized::Continue)),
+      (i, Serialized::Done) => {
+        match (self.length)(i).serialize(&mut output[..self.skip])? {
+          (_, Serialized::Continue) => Err(GenError::InvalidOffset),
+          (_, Serialized::Done) => Ok((self.skip+i, Serialized::Done))
+        }
+      }
+    }
+  }
+}
+
+pub fn length_value<A:Serializer, B:Serializer>(skip: usize, length: fn(usize) -> A, value: B) -> LengthValue<A, B> {
+  LengthValue::new(skip, length, value)
+}
+
 pub struct BigEndian<N> {
   pub num: N,
 }
@@ -207,6 +245,7 @@ pub fn le<N: Num>(n: N) -> LittleEndian<N> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use combinators::text::StrSr;
 
   #[test]
   fn be_u8() {
@@ -255,6 +294,7 @@ mod tests {
       assert_eq!(le(0x0102u16).serialize(&mut mem), Ok((2, Serialized::Done)));
       assert_eq!(mem, expected);
   }
+
   #[test]
   fn le_u32() {
       let mut mem : [u8; 8] = [0; 8];
@@ -262,11 +302,23 @@ mod tests {
       assert_eq!(le(0x01020304u32).serialize(&mut mem), Ok((4, Serialized::Done)));
       assert_eq!(mem, expected);
   }
+
   #[test]
   fn le_u64() {
       let mut mem : [u8; 8] = [0; 8];
       let expected = [8, 7, 6, 5, 4, 3, 2, 1];
       assert_eq!(le(0x0102030405060708u64).serialize(&mut mem), Ok((8, Serialized::Done)));
       assert_eq!(mem, expected);
+  }
+
+  #[test]
+  fn length_value_test() {
+      let mut mem : [u8; 100] = [0; 100];
+      let expected = b"\x00\x05hello";
+
+      let mut sr = length_value(2, |nb| (nb as u16).be(), "hello".raw());
+
+      assert_eq!(sr.serialize(&mut mem), Ok((7, Serialized::Done)));
+      assert_eq!(&mem[..7], expected);
   }
 }
