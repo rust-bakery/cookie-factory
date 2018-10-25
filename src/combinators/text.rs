@@ -16,7 +16,7 @@ impl<S: AsRef<str>> StrSr for S {
   }
 }
 
-pub struct Print<'a, T> {
+pub struct Print<'a, T: 'a> {
   value: &'a T,
 }
 
