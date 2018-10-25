@@ -91,16 +91,16 @@ impl<S: ?Sized + Serializer> Serializer for Box<S> {
 }
 
 pub struct Then<A, B> {
-  pub a: Option<A>,
-  pub b: B,
+  pub first: Option<A>,
+  pub second: B,
 }
 
 impl<A:Serializer, B:Serializer> Then<A, B> {
   #[inline(always)]
   pub fn new(a: A, b: B) -> Self {
     Then {
-      a: Some(a),
-      b,
+      first: Some(a),
+      second: b,
     }
   }
 }
@@ -109,10 +109,10 @@ impl<A:Serializer, B:Serializer> Serializer for Then<A,B> {
   #[inline(always)]
   fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
     let mut i = 0;
-    if let Some(mut a) = self.a.take() {
+    if let Some(mut a) = self.first.take() {
       match a.serialize(output)? {
         (index, Serialized::Continue) => {
-          self.a = Some(a);
+          self.first = Some(a);
           return Ok((index, Serialized::Continue))
         },
         (index, Serialized::Done) => {
@@ -122,7 +122,7 @@ impl<A:Serializer, B:Serializer> Serializer for Then<A,B> {
     }
 
     let sl = &mut output[i..];
-    self.b.serialize(sl).map(|(index, res)| (index+i, res))
+    self.second.serialize(sl).map(|(index, res)| (index+i, res))
   }
 }
 

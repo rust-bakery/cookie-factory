@@ -65,14 +65,14 @@ mod tests {
     assert_eq!(sr.serialize(&mut s[..132]), Ok((132, Serialized::Continue)));
 
     // add chunk
-    sr.b.push(chunk(&b"Hello "[..]));
+    sr.second.push(chunk(&b"Hello "[..]));
     assert_eq!(sr.serialize(&mut s[132..145]), Ok((13, Serialized::Continue)));
     assert_eq!(from_utf8(&s[132..145]).unwrap(), "\r\n\r\n6\r\nHello ");
 
     // add chunk
-    sr.b.push(chunk(&b"world !"[..]));
+    sr.second.push(chunk(&b"world !"[..]));
     // add last chunk
-    sr.b.push(chunk(&[]));
+    sr.second.push(chunk(&[]));
 
     assert_eq!(sr.serialize(&mut s[145..]), Ok((19, Serialized::Done)));
     assert_eq!(from_utf8(&s[136..164]).unwrap(), "6\r\nHello \r\n7\r\nworld !\r\n0\r\n\r\n");
