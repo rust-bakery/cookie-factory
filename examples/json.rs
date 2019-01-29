@@ -5,6 +5,7 @@ extern crate cookie_factory;
 extern crate maplit;
 
 use std::iter::repeat;
+use cookie_factory::Serializer;
 
 #[path="../tests/json/mod.rs"] mod implementation;
 use implementation::*;

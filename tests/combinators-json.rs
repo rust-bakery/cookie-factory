@@ -1,5 +1,6 @@
 #![feature(test)]
 extern crate test;
+#[macro_use]
 extern crate cookie_factory;
 #[macro_use]
 extern crate maplit;
