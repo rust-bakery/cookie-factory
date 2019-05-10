@@ -24,3 +24,8 @@ travis-ci = { repository = "Geal/cookie-factory" }
 
 [dev-dependencies]
 maplit = "^1.0"
+
+[profile.bench]
+debug = true
+lto = true
+codegen-units = 1
