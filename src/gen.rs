@@ -1,5 +1,7 @@
 //! Generator combinator, based on [nom](https://github.com/Geal/nom)'s syntax.
 
+use std::{error, fmt};
+
 /// Base type for generator errors
 #[derive(Debug, PartialEq)]
 pub enum GenError {
@@ -14,6 +16,13 @@ pub enum GenError {
     NotYetImplemented,
 }
 
+impl fmt::Display for GenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for GenError {}
 
 /// Write an unsigned 1 byte integer. Equivalent to `gen_be_u8!(v)`
 #[inline]
