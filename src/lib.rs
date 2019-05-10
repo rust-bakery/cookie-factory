@@ -11,3 +11,6 @@ pub use gen::*;
 
 mod combinators;
 pub use combinators::*;
+
+mod functions;
+pub use functions::*;
