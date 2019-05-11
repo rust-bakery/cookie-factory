@@ -31,6 +31,23 @@ pub fn string<'a, S: 'a+AsRef<str>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
+use std::io::{Cursor, Write};
+use std::fmt;
+pub fn hex<'a, S: 'a + fmt::UpperHex>(data: S) -> impl SerializeFn<&'a mut [u8]> {
+
+  move |out: &'a mut [u8]| {
+    let mut c = Cursor::new(out);
+    match write!(&mut c, "{:X}", data) {
+      Err(_) => Err(GenError::CustomError(42)),
+      Ok(_) => {
+        let pos = c.position() as usize;
+        let out = c.into_inner();
+        Ok(&mut out[pos..])
+      }
+    }
+  }
+}
+
 pub fn skip<'a>(len: usize) -> impl SerializeFn<&'a mut [u8]> {
 
     move |out: &'a mut [u8]| {
