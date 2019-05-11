@@ -7,12 +7,6 @@ use std::iter::repeat;
 #[path="../tests/http/mod.rs"] mod implementation;
 use implementation::*;
 
-use cookie_factory::Serializer;
-
-
-//use cookie_factory::rewrite::*;
-//use cookie_factory::http::*;
-
 fn main() {
   let request = Request {
     method: "GET",
@@ -28,8 +22,8 @@ fn main() {
 
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
   loop {
-    let mut sr = rw_request(&request);
-    let (index, res) = sr.serialize(&mut buffer).unwrap();
+    let mut sr = fn_request(&request);
+    let res = sr(&mut buffer).unwrap();
   }
 }
 

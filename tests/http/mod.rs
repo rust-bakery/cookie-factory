@@ -43,29 +43,6 @@ pub fn cf_header<'a, 'b, 'c>(i:(&'a mut [u8],usize), h: &'c Header<'b>) -> Resul
   )
 }
 
-pub fn rw_request<'a, 'b: 'a>(r: &'b Request<'a>) -> impl Serializer + 'a {
-  rw_request_line(&r.method, &r.uri)
-    .then(all(r.headers.iter().map(rw_header)))
-    .then("\r\n".raw())
-    .then(Slice::new(&r.body))
-}
-
-//#[inline(always)]
-pub fn rw_request_line<'a, S: AsRef<str>>(method: &'a S, uri: &'a S) -> impl Serializer + 'a {
-  method.raw()
-  .then(" ".raw())
-  .then(uri.raw())
-  .then(" HTTP/1.1\r\n".raw())
-}
-
-//#[inline(always)]
-pub fn rw_header<'a>(h: &'a Header) -> impl Serializer + 'a {
-  h.name.raw()
-    .then(": ".raw())
-    .then(h.value.raw()
-    .then("\r\n".raw()))
-}
-
 #[derive(Debug,Clone,PartialEq)]
 pub struct RequestHeaders<'a> {
   pub method: &'a str,
@@ -73,31 +50,7 @@ pub struct RequestHeaders<'a> {
   pub headers: Vec<Header<'a>>,
 }
 
-pub fn rw_request_headers<'a, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl Serializer + 'a {
-  rw_request_line(&r.method, &r.uri)
-    .then(all(r.headers.iter().map(rw_header)))
-    .then("\r\n".raw())
-}
-
-pub fn chunk<'a>(slice: &'a[u8]) -> impl Serializer + 'a {
-  (slice.len()).hex()
-    .then("\r\n".raw())
-    .then(Slice::new(slice))
-    .then("\r\n".raw())
-}
-
-pub fn chunked_request<'a, 'b: 'a, T: Serializer + 'a>(r: &'b RequestHeaders<'a>) -> Then<impl Serializer + 'a, Stream<T>> {
-  let s: Stream<T> = Stream::new();
-  rw_request_headers(r).then(s)
-}
-
 pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c mut[u8]> + 'a {
-  /*
-  fn_request_line(&r.method, &r.uri)
-    .then(all(r.headers.iter().map(rw_header)))
-    .then("\r\n".raw())
-    .then(Slice::new(&r.body))
-  */
   move |out: &'c mut [u8]| {
     let out = fn_request_line(&r.method, &r.uri)(out)?;
     let out = _all(r.headers.iter().map(fn_header))(out)?;
@@ -106,14 +59,7 @@ pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c
   }
 }
 
-//#[inline(always)]
 pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>>(method: &'a S, uri: &'a S) -> impl SerializeFn<&'c mut[u8]> + 'a {
-  /*
-  method.raw()
-  .then(" ".raw())
-  .then(uri.raw())
-  .then(" HTTP/1.1\r\n".raw())
-  */
   move |out: &'c mut [u8]| {
     let out = string(method)(out)?;
     let out = string(" ")(out)?;
@@ -122,13 +68,7 @@ pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>>(method: &'a S, uri: &'a S) -> i
   }
 }
 
-//#[inline(always)]
 pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> + 'a {
-  /*h.name.raw()
-    .then(": ".raw())
-    .then(h.value.raw()
-    .then("\r\n".raw()))
-  */
   move |out: &'c mut [u8]| {
     let out = string(h.name)(out)?;
     let out = string(": ")(out)?;
@@ -138,11 +78,6 @@ pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> + 'a
 }
 
 pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<&'c mut[u8]> + 'a {
-  /*
-  fn_request_line(&r.method, &r.uri)
-    .then(all(r.headers.iter().map(rw_header)))
-    .then("\r\n".raw())
-  */
   move |out: &'c mut [u8]| {
     let out = fn_request_line(&r.method, &r.uri)(out)?;
     let out = _all(r.headers.iter().map(fn_header))(out)?;
@@ -151,12 +86,6 @@ pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl 
 }
 
 pub fn fn_chunk<'a:'c,'c>(sl: &'a[u8]) -> impl SerializeFn<&'c mut[u8]> + 'a {
-  /*
-  (slice.len()).hex()
-    .then("\r\n".raw())
-    .then(Slice::new(slice))
-    .then("\r\n".raw())
-  */
   move |out: &'c mut [u8]| {
     let out = hex(sl.len())(out)?;
     let out = string("\r\n")(out)?;

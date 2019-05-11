@@ -5,7 +5,6 @@ extern crate cookie_factory;
 extern crate maplit;
 
 use std::iter::repeat;
-use cookie_factory::Serializer;
 
 #[path="../tests/json/mod.rs"] mod implementation;
 use implementation::*;
@@ -26,7 +25,7 @@ fn main() {
   loop {
     let mut sr = gen_json_value(&value);
 
-    let (_index, _result) = sr.serialize(&mut buffer).unwrap();
+    let _res = sr(&mut buffer).unwrap();
 
     //println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
   }

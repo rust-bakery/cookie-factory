@@ -25,14 +25,18 @@ fn json_test() {
   });
 
   //let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
-  let mut sr = gen_json_value(&value);
 
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-  let (index, _result) = sr.serialize(&mut buffer).unwrap();
+  let ptr = {
+    let mut sr = gen_json_value(&value);
+    let _res = sr(&mut buffer).unwrap();
+    _res.as_ptr() as usize
+  };
+
+  let index = ptr - (&buffer[..]).as_ptr() as usize;
 
   println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
   assert_eq!(str::from_utf8(&buffer[..index]).unwrap(),
     "{\"arr\":[1234.56,1234.56,1234.56],\"b\":true,\"o\":{\"empty\":[],\"x\":\"abcd\",\"y\":\"efgh\"}}");
-  //panic!();
 }
 

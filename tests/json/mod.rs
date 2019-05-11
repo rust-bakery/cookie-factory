@@ -12,157 +12,100 @@ pub enum JsonValue {
   Object(BTreeMap<String, JsonValue>),
 }
 
-/*
-pub fn gen_json_value<'a>(g: &'a JsonValue) -> Box<Serializer + 'a> {
-  match g {
-    JsonValue::Str(ref s) => Box::new(gen_str(s)) as Box<Serializer>,
-    JsonValue::Boolean(ref b) => Box::new(gen_bool(b)) as Box<Serializer>,
-    JsonValue::Num(ref n) => Box::new(gen_num(n)) as Box<Serializer>,
-    JsonValue::Array(ref v) => Box::new(gen_array(v)) as Box<Serializer>,
-    JsonValue::Object(ref o) => Box::new(gen_object(o)) as Box<Serializer>,
-  }
-}
-*/
-
-pub fn gen_json_value<'a>(g: &'a JsonValue) -> impl Serializer + 'a {
-  or(
-    if let JsonValue::Str(ref s) = g {
-      Some(gen_str(s))
-    } else {
-      None
-    },
-    or(
-      if let JsonValue::Boolean(ref b) = g {
-        Some(gen_bool(b))
-      } else {
-        None
-      },
-      or(
-        if let JsonValue::Num(ref n) = g {
-          Some(gen_num(n))
-        } else {
-          None
-        },
-        or(
-          if let JsonValue::Array(ref v) = g {
-            Some(ArrayWrap::new(v))
-          } else {
-            None
-          },
-          or(
-            if let JsonValue::Object(ref o) = g {
-              Some(ObjectWrap::new(o))
-            } else {
-              None
-            },
-            empty()
-          )
-        )
-      )
-    )
-  )
-}
-
-pub struct ArrayWrap<'a> {
-  pub value: &'a Vec<JsonValue>,
-  pub serializer: Option<Box<Serializer + 'a>>,
-}
-
-impl<'a> ArrayWrap<'a> {
-  pub fn new(value: &'a Vec<JsonValue>) -> ArrayWrap<'a> {
-    ArrayWrap {
-      value,
-      serializer: None,
-    }
-  }
-}
-
-impl<'a> Serializer for ArrayWrap<'a> {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    if let Some(s) = self.serializer.as_mut() {
-      return s.serialize(output);
-    }
-
-    let mut s = gen_array(self.value);
-    match s.serialize(output)? {
-      (i, Serialized::Continue) => {
-        self.serializer = Some(Box::new(s) as Box<Serializer>);
-        Ok((i, Serialized::Continue))
-      },
-      (i, Serialized::Done) => Ok((i, Serialized::Done)),
-    }
-  }
-}
-
-pub struct ObjectWrap<'a> {
-  pub value: &'a BTreeMap<String, JsonValue>,
-  pub serializer: Option<Box<Serializer + 'a>>,
-}
-
-impl<'a> ObjectWrap<'a> {
-  pub fn new(value: &'a BTreeMap<String, JsonValue>) -> ObjectWrap<'a> {
-    ObjectWrap {
-      value,
-      serializer: None,
-    }
-  }
-}
-
-impl<'a> Serializer for ObjectWrap<'a> {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    if let Some(s) = self.serializer.as_mut() {
-      return s.serialize(output);
-    }
-
-    let mut s = gen_object(self.value);
-    match s.serialize(output)? {
-      (i, Serialized::Continue) => {
-        self.serializer = Some(Box::new(s) as Box<Serializer>);
-        Ok((i, Serialized::Continue))
-      },
-      (i, Serialized::Done) => Ok((i, Serialized::Done)),
-    }
+#[inline(always)]
+pub fn gen_str<'a, 'b: 'a>(s: &'b str) -> impl SerializeFn<&'a mut [u8]> {
+  move |out: &'a mut [u8]| {
+    let out = string("\"")(out)?;
+    let out = string(s)(out)?;
+    string("\"")(out)
   }
 }
 
 #[inline(always)]
-pub fn gen_str<'a, S: AsRef<str>>(s: &'a S) -> impl Serializer + 'a {
-  "\"".raw()
-    .then(s.raw())
-    .then("\"".raw())
-}
-
-pub fn gen_bool(b: &bool) -> impl Serializer {
-  if *b {
-    "true".raw()
+pub fn gen_bool<'a>(b: bool) -> impl SerializeFn<&'a mut [u8]> {
+  if b {
+    string("true")
   } else {
-    "false".raw()
+    string("false")
   }
 }
 
-pub fn gen_num(_b: &f64) -> impl Serializer {
-  "1234.56".raw()
+#[inline(always)]
+pub fn gen_num<'a>(b: f64) -> impl SerializeFn<&'a mut [u8]> {
+  /*move |out: &'a mut [u8]| {
+    let s = format!("{}", b);
+    string(s)(out)
+  }*/
+  string("1234.56")
 }
 
-pub fn gen_array<'a>(arr: &'a [JsonValue]) -> impl Serializer + 'a {
-  "[".raw()
-    .then(SeparatedList::new(
-        ",".raw(),
-        arr.iter().map(gen_json_value)))
-    .then("]".raw())
+pub fn gen_array<'a, 'b: 'a>(arr: &'b [JsonValue]) -> impl SerializeFn<&'a mut [u8]> {
+  move |out: &'a mut [u8]| {
+    let out = string("[")(out)?;
+    //let out = separated_list(string(","), |i, v| gen_json_value(v)(i), arr)(out)?;
+    let out = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
+    string("]")(out)
+  }
 }
 
-pub fn gen_object<'a>(o: &'a BTreeMap<String, JsonValue>) -> impl Serializer + 'a {
-  "{".raw()
-    .then(SeparatedList::new(
-        ",".raw(),
-        o.iter().map(gen_key_value)))
-    .then("}".raw())
+pub fn gen_key_value<'a, 'b: 'a>(kv: (&'b String, &'b JsonValue)) -> impl SerializeFn<&'a mut [u8]> {
+  move |out: &'a mut [u8]| {
+    let out = gen_str(kv.0)(out)?;
+    let out = string(":")(out)?;
+    gen_json_value(&kv.1)(out)
+  }
 }
 
-pub fn gen_key_value<'a>(kv: (&'a String, &'a JsonValue)) -> impl Serializer + 'a {
-  gen_str(kv.0).then(":".raw()).then(gen_json_value(&kv.1))
+pub fn gen_object<'a, 'b: 'a>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<&'a mut [u8]> {
+  move |out: &'a mut [u8]| {
+    let out = string("{")(out)?;
+    //let kv = o.iter().collect::<Vec<_>>();
+
+    //let out = separated_list(string(","), |i, v| gen_key_value(*v)(i), &kv)(out)?;
+    let out = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
+    string("}")(out)
+  }
 }
 
+
+pub fn gen_json_value<'a>(g: &'a JsonValue) -> impl SerializeFn<&'a mut [u8]> {
+  move |out: &'a mut [u8]| {
+    match g {
+      JsonValue::Str(ref s) => gen_str(s)(out),
+      JsonValue::Boolean(ref b) => gen_bool(*b)(out),
+      JsonValue::Num(ref n) => gen_num(*n)(out),
+      JsonValue::Array(ref v) => gen_array(v)(out),
+      JsonValue::Object(ref o) => gen_object(o)(out),
+    }
+  }
+}
+
+#[test]
+fn json_test() {
+  use std::str;
+  use std::iter::repeat;
+  let value = JsonValue::Object(btreemap!{
+    String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
+    String::from("b") => JsonValue::Boolean(true),
+    String::from("o") => JsonValue::Object(btreemap!{
+      String::from("x") => JsonValue::Str(String::from("abcd")),
+      String::from("y") => JsonValue::Str(String::from("efgh")),
+      String::from("empty") => JsonValue::Array(vec![]),
+    }),
+  });
+
+  let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+  let pos = {
+    let mut sr = gen_json_value(&value);
+
+    let res = sr(&mut buffer).unwrap();
+    res.as_ptr() as usize
+  };
+
+  let index = pos - buffer.as_ptr() as usize;
+
+
+  println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
+  assert_eq!(str::from_utf8(&buffer[..index]).unwrap(),
+    "{\"arr\":[1234.56,1234.56,1234.56],\"b\":true,\"o\":{\"empty\":[],\"x\":\"abcd\",\"y\":\"efgh\"}}");
+}

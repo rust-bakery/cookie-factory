@@ -1,403 +1,268 @@
 use gen::GenError;
-use std::collections::VecDeque;
 
-mod text;
-mod binary;
-pub use self::text::*;
-pub use self::binary::*;
+pub trait SerializeFn<I>: Fn(I) -> Result<I, GenError> {}
 
-#[derive(Clone,Copy,Debug,PartialEq)]
-pub enum Serialized {
-  Done,
-  Continue,
+impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
+
+
+pub fn slice<'a, S: 'a + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
+    let len = data.as_ref().len();
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            (&mut out[..len]).copy_from_slice(data.as_ref());
+            Ok(&mut out[len..])
+        }
+    }
 }
 
-pub trait Serializer {
-  fn serialize(&mut self, output: &mut [u8]) -> Result<(usize, Serialized), GenError>;
+pub fn string<'a, S: 'a+AsRef<str>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
 
-  #[inline(always)]
-  fn then<T>(self, next: T) -> Then<Self, T>
-    where
-      Self: Sized,
-      T: Serializer
-  {
-    Then::new(self, next)
+    let len = data.as_ref().len();
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            (&mut out[..len]).copy_from_slice(data.as_ref().as_bytes());
+            Ok(&mut out[len..])
+        }
+    }
+}
+
+use std::io::{Cursor, Write};
+use std::fmt;
+pub fn hex<'a, S: 'a + fmt::UpperHex>(data: S) -> impl SerializeFn<&'a mut [u8]> {
+
+  move |out: &'a mut [u8]| {
+    let mut c = Cursor::new(out);
+    match write!(&mut c, "{:X}", data) {
+      Err(_) => Err(GenError::CustomError(42)),
+      Ok(_) => {
+        let pos = c.position() as usize;
+        let out = c.into_inner();
+        Ok(&mut out[pos..])
+      }
+    }
   }
 }
 
-pub trait Reset {
-  fn reset(&mut self) -> bool;
+pub fn skip<'a>(len: usize) -> impl SerializeFn<&'a mut [u8]> {
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            Ok(&mut out[len..])
+        }
+    }
 }
 
-pub fn or<T,U>(t: Option<T>, u: U) -> Or<T, U>
-  where
-    T: Serializer,
-    U: Serializer
-{
-  Or::new(t, u)
+pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &'a mut [u8]), GenError>
+  where F: SerializeFn<&'a mut [u8]> {
+
+    move |out: &'a mut [u8]| {
+        unsafe {
+            let ptr = out.as_mut_ptr();
+            let out = f(out)?;
+            let len = out.as_ptr() as usize - ptr as usize;
+
+            Ok((std::slice::from_raw_parts_mut(ptr, len), out))
+        }
+    }
 }
 
-#[derive(Debug)]
-pub struct Empty;
+fn pair<F, G, I>(first: F, second: G) -> impl SerializeFn<I>
+where F: SerializeFn<I>,
+      G: SerializeFn<I> {
 
-impl Serializer for Empty {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, _output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    Ok((0, Serialized::Done))
+  move |out: I| {
+    let out = first(out)?;
+    second(out)
   }
 }
 
-impl Reset for Empty {
-  fn reset(&mut self) -> bool {
-    true
-  }
-}
+fn cond<F, G, I>(condition: bool, f: F) -> impl SerializeFn<I>
+where F: SerializeFn<I>, {
 
-#[inline(always)]
-pub fn empty() -> Empty {
-  Empty
-}
-
-#[derive(Debug)]
-pub struct Skip(usize);
-
-impl Serializer for Skip {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    if output.len() < self.0 {
-      Ok((0, Serialized::Continue))
+  move |out: I| {
+    if condition {
+      f(out)
     } else {
-      Ok((self.0, Serialized::Done))
+      Ok(out)
     }
   }
 }
 
-impl Reset for Skip {
-  fn reset(&mut self) -> bool {
-    true
-  }
-}
 
-#[inline(always)]
-pub fn skip(sz: usize) -> Skip {
-  Skip(sz)
-}
+pub fn _all<'a, 'b, G, I, It: Iterator<Item=G>, Arg: 'a+Clone+IntoIterator<Item=G, IntoIter=It>>(values: Arg) -> impl SerializeFn<I> + 'a
+  where G: SerializeFn<I> + 'b {
 
-impl<S: ?Sized + Serializer> Serializer for Box<S> {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    (**self).serialize(output)
-  }
-}
+  move |mut out: I| {
+    let it = values.clone().into_iter();
 
-pub struct Then<A, B> {
-  pub first: Option<A>,
-  pub second: B,
-}
-
-impl<A:Serializer, B:Serializer> Then<A, B> {
-  #[inline(always)]
-  pub fn new(a: A, b: B) -> Self {
-    Then {
-      first: Some(a),
-      second: b,
+    for v in it {
+      out = v(out)?;
     }
+
+    Ok(out)
   }
 }
 
-impl<A:Serializer, B:Serializer> Serializer for Then<A,B> {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    let mut i = 0;
-    if let Some(mut a) = self.first.take() {
-      match a.serialize(output)? {
-        (index, Serialized::Continue) => {
-          self.first = Some(a);
-          return Ok((index, Serialized::Continue))
-        },
-        (index, Serialized::Done) => {
-          i = index;
-        }
+pub fn separated_list<'a, 'b, 'c, F, G, I, It: Iterator<Item=G>, Arg: 'a+Clone+IntoIterator<Item=G, IntoIter=It>>(sep: F, values: Arg) -> impl SerializeFn<I> + 'a
+  where F: SerializeFn<I> + 'b + 'a,
+        G: SerializeFn<I> + 'c {
+
+  move |mut out: I| {
+    let mut it = values.clone().into_iter();
+    match it.next() {
+      None => return Ok(out),
+      Some(first) => {
+        out = first(out)?;
       }
     }
 
-    let sl = &mut output[i..];
-    self.second.serialize(sl).map(|(index, res)| (index+i, res))
-  }
-}
-
-pub struct Or<A, B> {
-  a: Option<A>,
-  b: B,
-}
-
-impl<A:Serializer, B:Serializer> Or<A, B> {
-  #[inline(always)]
-  pub fn new(a: Option<A>, b: B) -> Self {
-    Or {
-      a,
-      b,
+    for v in it {
+      out = sep(out)?;
+      out = v(out)?;
     }
+
+    Ok(out)
   }
 }
 
-impl<A:Serializer, B:Serializer> Serializer for Or<A,B> {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    match &mut self.a {
-      Some(ref mut a) => a.serialize(output),
-      None => self.b.serialize(output)
-    }
-  }
-}
+pub fn be_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 1;
 
-impl<A:Serializer+Reset, B:Serializer+Reset> Reset for Or<A, B> {
-  fn reset(&mut self) -> bool {
-    self.a.as_mut().map(|a| a.reset()).unwrap_or(self.b.reset())
-  }
-}
-
-
-pub struct All<T,It> {
-  current: Option<T>,
-  it: It,
-}
-
-impl<T: Serializer, It: Iterator<Item=T>> All<T, It> {
-  #[inline(always)]
-  pub fn new<IntoIt: IntoIterator<Item=T, IntoIter=It>>(it: IntoIt) -> Self {
-    All {
-      current: None,
-      it: it.into_iter(),
-    }
-  }
-}
-
-impl<T: Serializer, It: Iterator<Item=T>> Serializer for All<T, It> {
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    let mut index = 0;
-
-    loop {
-      let mut current = match self.current.take() {
-        Some(s) => s,
-        None => match self.it.next() {
-          Some(s) => s,
-          None => return Ok((index, Serialized::Done)),
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = i;
+            Ok(&mut out[len..])
         }
-      };
-
-      let sl = &mut output[index..];
-      match current.serialize(sl)? {
-        (i, Serialized::Continue) => {
-          self.current = Some(current);
-          return Ok((index + i, Serialized::Continue));
-        },
-        (i, Serialized::Done) => {
-          index += i;
-        },
-      }
     }
-  }
 }
 
-#[inline(always)]
-pub fn all<T: Serializer, It: Iterator<Item=T>, IntoIt: IntoIterator<Item=T, IntoIter=It>>(it: IntoIt) -> All<T, It> {
-  All::new(it)
-}
+pub fn be_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 2;
 
-pub struct SeparatedList<T,U,It> {
-  current: Option<T>,
-  it: It,
-  separator: U,
-  serialize_element: bool,
-}
-
-impl<T: Serializer, U: Serializer+Reset, It: Iterator<Item=T>> SeparatedList<T, U, It> {
-  #[inline(always)]
-  pub fn new<IntoIt: IntoIterator<Item=T, IntoIter=It>>(separator: U, it: IntoIt) -> Self {
-    let mut it = it.into_iter();
-    SeparatedList {
-      current: it.next(),
-      it,
-      separator,
-      serialize_element: true,
-    }
-  }
-}
-
-impl<T: Serializer, U: Serializer+Reset, It: Iterator<Item=T>> Serializer for SeparatedList<T, U, It> {
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    let mut index = 0;
-
-    loop {
-      let sl = &mut output[index..];
-
-      if self.serialize_element {
-        let mut current = match self.current.take() {
-          Some(s) => s,
-          None => return Ok((index, Serialized::Done)),
-        };
-
-        match current.serialize(sl)? {
-          (i, Serialized::Continue) => {
-            self.current = Some(current);
-            return Ok((index + i, Serialized::Continue));
-          },
-          (i, Serialized::Done) => {
-            index += i;
-          },
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = ((i >> 8) & 0xff) as u8;
+            out[1] = (i        & 0xff) as u8;
+            Ok(&mut out[len..])
         }
+    }
+}
 
-        self.current = self.it.next();
-        if self.current.is_some() {
-          self.serialize_element = false;
+pub fn be_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 4;
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = ((i >> 24) & 0xff) as u8;
+            out[1] = ((i >> 16) & 0xff) as u8;
+            out[2] = ((i >> 8)  & 0xff) as u8;
+            out[3] = (i         & 0xff) as u8;
+            Ok(&mut out[len..])
         }
-      } else {
-        // serialize separator
-        match self.separator.serialize(sl)? {
-          (i, Serialized::Continue) => {
-            return Ok((index + i, Serialized::Continue));
-          },
-          (i, Serialized::Done) => {
-            index += i;
-            self.serialize_element = true;
-            self.separator.reset();
-          },
+    }
+}
 
+pub fn be_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 8;
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = ((i >> 56) & 0xff) as u8;
+            out[1] = ((i >> 48) & 0xff) as u8;
+            out[2] = ((i >> 40) & 0xff) as u8;
+            out[3] = ((i >> 32) & 0xff) as u8;
+            out[4] = ((i >> 24) & 0xff) as u8;
+            out[5] = ((i >> 16) & 0xff) as u8;
+            out[6] = ((i >> 8)  & 0xff) as u8;
+            out[7] = (i         & 0xff) as u8;
+            Ok(&mut out[len..])
         }
-      }
     }
-  }
 }
 
-pub struct Stream<T> {
-  queue: VecDeque<T>,
-}
+pub fn le_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 1;
 
-impl<T:Serializer> Stream<T> {
-  #[inline(always)]
-  pub fn new() -> Self {
-    Stream {
-      queue: VecDeque::new(),
-    }
-  }
-
-  pub fn from_iter<It: Iterator<Item=T>>(it: It) -> Self {
-    Stream {
-      queue: it.collect(),
-    }
-  }
-
-  pub fn push(&mut self, t: T) {
-    self.queue.push_back(t);
-  }
-}
-
-impl<T:Serializer> Serializer for Stream<T> {
-  #[inline(always)]
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    let mut index = 0;
-
-    loop {
-      match self.queue.front_mut() {
-        None => return Ok((index, Serialized::Done)),
-        Some(s) => match s.serialize(&mut output[index..])? {
-          (i, Serialized::Continue) => return Ok((index+i, Serialized::Continue)),
-          (i, Serialized::Done) => {
-            index += i;
-          }
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = i;
+            Ok(&mut out[len..])
         }
-      }
-
-      self.queue.pop_front();
     }
-  }
 }
 
-impl Serializer for Fn(&mut [u8]) -> Result<(&mut [u8],usize),GenError> {
-  fn serialize<'b, 'c>(&'b mut self, output: &'c mut [u8]) -> Result<(usize, Serialized), GenError> {
-    match self(output) {
-      Err(e) => Err(e),
-      Ok((_, index)) => Ok((index, Serialized::Done)),
+pub fn le_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 2;
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = (i        & 0xff) as u8;
+            out[1] = ((i >> 8) & 0xff) as u8;
+            Ok(&mut out[len..])
+        }
     }
-  }
 }
 
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use std::str::from_utf8;
+pub fn le_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 4;
 
-  #[test]
-  fn then_serializer() {
-    let s1 = String::from("hello ");
-    let sr1 = Slice::new(s1.as_str().as_bytes());
-
-    let s2 = String::from("world!");
-    let sr2 = s2.raw();//StrSerializer::new(s2.as_str());
-
-    let mut sr = sr1.then(sr2);
-
-    let mut mem: [u8; 4] = [0; 4];
-    let s = &mut mem[..];
-
-    assert_eq!(sr.serialize(s), Ok((4, Serialized::Continue)));
-    assert_eq!(&s[..], b"hell");
-
-    assert_eq!(sr.serialize(s), Ok((4, Serialized::Continue)));
-    assert_eq!(&s[..], b"o wo");
-
-    assert_eq!(sr.serialize(s), Ok((4, Serialized::Done)));
-    assert_eq!(&s[..], b"rld!");
-  }
-
-  #[test]
-  fn separated_list() {
-    let mut mem: [u8; 100] = [0; 100];
-    let s = &mut mem[..];
-
-    let mut empty_list = SeparatedList::new(", ".raw(), [].iter().map(|_: &u8| empty()));
-    assert_eq!(empty_list.serialize(s), Ok((0, Serialized::Done)));
-
-    let mut single_element_list = SeparatedList::new(", ".raw(), ["hello"].iter().map(|s| s.raw()));
-    assert_eq!(single_element_list.serialize(s), Ok((5, Serialized::Done)));
-    assert_eq!(from_utf8(&s[..5]).unwrap(), "hello");
-
-    let mut three_element_list = SeparatedList::new(", ".raw(), ["hello", "world", "hello again"].iter().map(|s| s.raw()));
-    assert_eq!(three_element_list.serialize(s), Ok((25, Serialized::Done)));
-    assert_eq!(from_utf8(&s[..25]).unwrap(), "hello, world, hello again");
-
-    let mut three_element_list_partial = SeparatedList::new(", ".raw(), ["hello", "world", "hello again"].iter().map(|s| s.raw()));
-    assert_eq!(three_element_list_partial.serialize(&mut s[..6]), Ok((6, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..6]).unwrap(), "hello,");
-    assert_eq!(three_element_list_partial.serialize(&mut s[6..11]), Ok((5, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..11]).unwrap(), "hello, worl");
-    assert_eq!(three_element_list_partial.serialize(&mut s[11..14]), Ok((3, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..14]).unwrap(), "hello, world, ");
-    assert_eq!(three_element_list_partial.serialize(&mut s[14..20]), Ok((6, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..20]).unwrap(), "hello, world, hello ");
-    assert_eq!(three_element_list_partial.serialize(&mut s[20..]), Ok((5, Serialized::Done)));
-    assert_eq!(from_utf8(&s[..26]).unwrap(), "hello, world, hello again\0");
-  }
-
-  #[test]
-  fn stream() {
-    let mut mem: [u8; 100] = [0; 100];
-    let s = &mut mem[..];
-
-    let mut stream = Stream::from_iter(["hello ", "world! ", "hello again! "].iter().map(|s| s.raw()));
-    assert_eq!(stream.serialize(&mut s[..7]), Ok((7, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..7]).unwrap(), "hello w");
-
-    stream.push("hi there!".raw());
-
-    assert_eq!(stream.serialize(&mut s[7..20]), Ok((13, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..20]).unwrap(), "hello world! hello a");
-
-    assert_eq!(stream.serialize(&mut s[20..28]), Ok((8, Serialized::Continue)));
-    assert_eq!(from_utf8(&s[..28]).unwrap(), "hello world! hello again! hi");
-
-    assert_eq!(stream.serialize(&mut s[28..]), Ok((7, Serialized::Done)));
-    assert_eq!(from_utf8(&s[..35]).unwrap(), "hello world! hello again! hi there!");
-  }
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = (i         & 0xff) as u8;
+            out[1] = ((i >> 8)  & 0xff) as u8;
+            out[2] = ((i >> 16) & 0xff) as u8;
+            out[3] = ((i >> 24) & 0xff) as u8;
+            Ok(&mut out[len..])
+        }
+    }
 }
+
+pub fn le_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 8;
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = (i         & 0xff) as u8;
+            out[1] = ((i >> 8)  & 0xff) as u8;
+            out[2] = ((i >> 16) & 0xff) as u8;
+            out[3] = ((i >> 24) & 0xff) as u8;
+            out[4] = ((i >> 32) & 0xff) as u8;
+            out[5] = ((i >> 40) & 0xff) as u8;
+            out[6] = ((i >> 48) & 0xff) as u8;
+            out[7] = ((i >> 56) & 0xff) as u8;
+            Ok(&mut out[len..])
+        }
+    }
+}
+//missing combinators:
+//or
+//empty
+//then
+//stream
+//length_value
+//text print
+//text upperhex
+//text lowerhex
