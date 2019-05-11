@@ -38,11 +38,27 @@ mod tests {
     let mut sr = rw_request(&request);
     let (index2, res) = sr.serialize(s2).unwrap();
     assert_eq!(res, Serialized::Done);
-    println!("request written by cf:\n{}", from_utf8(&s[..index]).unwrap());
+    println!("request written by rw:\n{}", from_utf8(&s2[..index2]).unwrap());
     println!("wrote {} bytes", index2);
 
     assert_eq!(index, index2);
     assert_eq!(from_utf8(&s[..index]).unwrap(), from_utf8(&s2[..index2]).unwrap());
+
+    let mut mem3: [u8; 1024] = [0; 1024];
+    let ptr = {
+      let s3 = &mut mem3[..];
+
+      let mut sr = fn_request(&request);
+      let res = sr(s3).unwrap();
+      res.as_ptr() as usize
+    };
+    let index3 = ptr - (&mem3[..]).as_ptr() as usize;
+    println!("request written by fn:\n{}", from_utf8(&mem3[..index3]).unwrap());
+    println!("wrote {} bytes", index3);
+
+    assert_eq!(index, index3);
+    assert_eq!(from_utf8(&s[..index]).unwrap(), from_utf8(&mem3[..index3]).unwrap());
+    panic!();
   }
 
   #[test]

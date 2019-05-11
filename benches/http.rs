@@ -171,3 +171,44 @@ mod combinators {
     });
   }
 }
+
+mod functions {
+  use super::*;
+  use std::str;
+
+  #[bench]
+  fn http(b: &mut Bencher) {
+    let request = Request {
+      method: "GET",
+      uri: "/hello/test/a/b/c?name=value#hash",
+      headers: [
+        Header { name: "Host", value: "lolcatho.st" },
+        Header { name: "User-agent", value: "cookie-factory" },
+        Header { name: "Content-Length", value: "13" },
+        Header { name: "Connection", value: "Close" },
+      ].iter().cloned().collect(),
+      body: b"Hello, world!",
+    };
+
+
+    let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+    let ptr = {
+      let sr = fn_request(&request);
+      let buf = sr(&mut buffer).unwrap();
+
+      //println!("result:\n{}", str::from_utf8(buf).unwrap());
+
+      buf.as_ptr() as usize
+    };
+
+    let index = ptr - (&buffer[..]).as_ptr() as usize;
+
+    println!("wrote {} bytes", index);
+    b.bytes = index as u64;
+    b.iter(|| {
+      let sr = fn_request(&request);
+      let res = sr(&mut buffer).unwrap();
+      assert_eq!(res.as_ptr() as usize, ptr);
+    });
+  }
+}
