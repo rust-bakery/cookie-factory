@@ -306,6 +306,23 @@ pub fn le_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
     le_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
 }
 
+pub fn many_ref<'a, E, It, I, F, G, O>(items: I, generator: F) -> impl SerializeFn<O> + 'a
+where
+    It: Iterator<Item = E> + Clone + 'a,
+    I: IntoIterator<Item = E, IntoIter = It>,
+    F: Fn(E) -> G + 'a,
+    G: SerializeFn<O> + 'a,
+    O: 'a
+{
+    let items = items.into_iter();
+    move |mut out: O| {
+        for item in items.clone() {
+            out = generator(item)(out)?;
+        }
+        Ok(out)
+    }
+}
+
 //missing combinators:
 //or
 //empty
