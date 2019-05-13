@@ -195,6 +195,30 @@ pub fn be_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
+pub fn be_i8<'a>(i: i8) -> impl SerializeFn<&'a mut [u8]> {
+    be_u8(i as u8)
+}
+
+pub fn be_i16<'a>(i: i16) -> impl SerializeFn<&'a mut [u8]> {
+    be_u16(i as u16)
+}
+
+pub fn be_i32<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
+    be_u32(i as u32)
+}
+
+pub fn be_i64<'a>(i: i64) -> impl SerializeFn<&'a mut [u8]> {
+    be_u64(i as u64)
+}
+
+pub fn be_f32<'a>(i: f32) -> impl SerializeFn<&'a mut [u8]> {
+    be_u32(unsafe { std::mem::transmute::<f32, u32>(i) })
+}
+
+pub fn be_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
+    be_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
+}
+
 pub fn le_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
    let len = 1;
 
@@ -257,6 +281,31 @@ pub fn le_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
         }
     }
 }
+
+pub fn le_i8<'a>(i: i8) -> impl SerializeFn<&'a mut [u8]> {
+    le_u8(i as u8)
+}
+
+pub fn le_i16<'a>(i: i16) -> impl SerializeFn<&'a mut [u8]> {
+    le_u16(i as u16)
+}
+
+pub fn le_i32<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
+    le_u32(i as u32)
+}
+
+pub fn le_i64<'a>(i: i64) -> impl SerializeFn<&'a mut [u8]> {
+    le_u64(i as u64)
+}
+
+pub fn le_f32<'a>(i: f32) -> impl SerializeFn<&'a mut [u8]> {
+    le_u32(unsafe { std::mem::transmute::<f32, u32>(i) })
+}
+
+pub fn le_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
+    le_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
+}
+
 //missing combinators:
 //or
 //empty
