@@ -6,6 +6,45 @@ pub trait SerializeFn<I>: Fn(I) -> Result<I, GenError> {}
 
 impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
 
+pub trait GenSize {
+    fn get_gen_size(&self) -> usize;
+    fn check_gen_size(&self, buffer: &[u8]) -> Result<(), GenError> {
+        self.check_gen_size_with_offset(buffer, 0)
+    }
+    fn check_gen_size_with_offset(&self, buffer: &[u8], offset: usize) -> Result<(), GenError> {
+        let size = self.get_gen_size() + offset;
+        if buffer.len() < size {
+            Err(GenError::BufferTooSmall(size))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl GenSize for u8 {
+    fn get_gen_size(&self) -> usize {
+        1
+    }
+}
+
+impl GenSize for u16 {
+    fn get_gen_size(&self) -> usize {
+        2
+    }
+}
+
+impl GenSize for u32 {
+    fn get_gen_size(&self) -> usize {
+        4
+    }
+}
+
+impl GenSize for u64 {
+    fn get_gen_size(&self) -> usize {
+        8
+    }
+}
+
 /// writes a byte slice to the output
 ///
 /// ```rust
@@ -264,65 +303,45 @@ pub fn separated_list<'a, 'b, 'c, F, G, I, It>(sep: F, values: It) -> impl Seria
 }
 
 pub fn be_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 1;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = i;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = i;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
 pub fn be_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 2;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = ((i >> 8) & 0xff) as u8;
-            out[1] = (i        & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = ((i >> 8) & 0xff) as u8;
+        out[1] = (i        & 0xff) as u8;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
 pub fn be_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 4;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = ((i >> 24) & 0xff) as u8;
-            out[1] = ((i >> 16) & 0xff) as u8;
-            out[2] = ((i >> 8)  & 0xff) as u8;
-            out[3] = (i         & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = ((i >> 24) & 0xff) as u8;
+        out[1] = ((i >> 16) & 0xff) as u8;
+        out[2] = ((i >> 8)  & 0xff) as u8;
+        out[3] = (i         & 0xff) as u8;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
 pub fn be_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 8;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = ((i >> 56) & 0xff) as u8;
-            out[1] = ((i >> 48) & 0xff) as u8;
-            out[2] = ((i >> 40) & 0xff) as u8;
-            out[3] = ((i >> 32) & 0xff) as u8;
-            out[4] = ((i >> 24) & 0xff) as u8;
-            out[5] = ((i >> 16) & 0xff) as u8;
-            out[6] = ((i >> 8)  & 0xff) as u8;
-            out[7] = (i         & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = ((i >> 56) & 0xff) as u8;
+        out[1] = ((i >> 48) & 0xff) as u8;
+        out[2] = ((i >> 40) & 0xff) as u8;
+        out[3] = ((i >> 32) & 0xff) as u8;
+        out[4] = ((i >> 24) & 0xff) as u8;
+        out[5] = ((i >> 16) & 0xff) as u8;
+        out[6] = ((i >> 8)  & 0xff) as u8;
+        out[7] = (i         & 0xff) as u8;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
@@ -351,65 +370,45 @@ pub fn be_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
 }
 
 pub fn le_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 1;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = i;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = i;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
 pub fn le_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 2;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = (i        & 0xff) as u8;
-            out[1] = ((i >> 8) & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = (i        & 0xff) as u8;
+        out[1] = ((i >> 8) & 0xff) as u8;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
 pub fn le_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 4;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = (i         & 0xff) as u8;
-            out[1] = ((i >> 8)  & 0xff) as u8;
-            out[2] = ((i >> 16) & 0xff) as u8;
-            out[3] = ((i >> 24) & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = (i         & 0xff) as u8;
+        out[1] = ((i >> 8)  & 0xff) as u8;
+        out[2] = ((i >> 16) & 0xff) as u8;
+        out[3] = ((i >> 24) & 0xff) as u8;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
 pub fn le_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 8;
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = (i         & 0xff) as u8;
-            out[1] = ((i >> 8)  & 0xff) as u8;
-            out[2] = ((i >> 16) & 0xff) as u8;
-            out[3] = ((i >> 24) & 0xff) as u8;
-            out[4] = ((i >> 32) & 0xff) as u8;
-            out[5] = ((i >> 40) & 0xff) as u8;
-            out[6] = ((i >> 48) & 0xff) as u8;
-            out[7] = ((i >> 56) & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
+        i.check_gen_size(out)?;
+        out[0] = (i         & 0xff) as u8;
+        out[1] = ((i >> 8)  & 0xff) as u8;
+        out[2] = ((i >> 16) & 0xff) as u8;
+        out[3] = ((i >> 24) & 0xff) as u8;
+        out[4] = ((i >> 32) & 0xff) as u8;
+        out[5] = ((i >> 40) & 0xff) as u8;
+        out[6] = ((i >> 48) & 0xff) as u8;
+        out[7] = ((i >> 56) & 0xff) as u8;
+        Ok(&mut out[i.get_gen_size()..])
     }
 }
 
