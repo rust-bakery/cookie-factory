@@ -1,10 +1,26 @@
 use gen::GenError;
+use std::io::{Cursor, Write};
+use std::fmt;
 
 pub trait SerializeFn<I>: Fn(I) -> Result<I, GenError> {}
 
 impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
 
-
+/// writes a byte slice to the output
+///
+/// ```rust
+/// use cookie_factory::{length, slice};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let len = {
+///   let (len, _) = length(slice(&b"abcd"[..]))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 4usize);
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
 pub fn slice<'a, S: 'a + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
     let len = data.as_ref().len();
 
@@ -18,6 +34,21 @@ pub fn slice<'a, S: 'a + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [u8]>
     }
 }
 
+/// writes a byte slice to the output
+///
+/// ```rust
+/// use cookie_factory::{length, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let len = {
+///   let (len, _) = length(string("abcd"))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 4usize);
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
 pub fn string<'a, S: 'a+AsRef<str>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
 
     let len = data.as_ref().len();
@@ -31,8 +62,21 @@ pub fn string<'a, S: 'a+AsRef<str>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
-use std::io::{Cursor, Write};
-use std::fmt;
+/// writes a string to the output
+///
+/// ```rust
+/// use cookie_factory::{length, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let len = {
+///   let (len, _) = length(string("abcd"))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 4usize);
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
 pub fn hex<'a, S: 'a + fmt::UpperHex>(data: S) -> impl SerializeFn<&'a mut [u8]> {
 
   move |out: &'a mut [u8]| {
@@ -48,6 +92,17 @@ pub fn hex<'a, S: 'a + fmt::UpperHex>(data: S) -> impl SerializeFn<&'a mut [u8]>
   }
 }
 
+/// skips over some input bytes
+///
+/// ```rust
+/// use cookie_factory::{length, skip};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let out = skip(2)(&mut buf).unwrap();
+///
+/// assert_eq!(out.len(), 98);
+/// ```
 pub fn skip<'a>(len: usize) -> impl SerializeFn<&'a mut [u8]> {
 
     move |out: &'a mut [u8]| {
@@ -59,6 +114,18 @@ pub fn skip<'a>(len: usize) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
+/// applies a serializer then returns a tuple containing what was written and the remaining output buffer
+///
+/// ```rust
+/// use cookie_factory::{position, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let (written, remaining) = position(string("abcd"))(&mut buf[..]).unwrap();
+///
+/// assert_eq!(remaining.len(), 96);
+/// assert_eq!(written, &b"abcd"[..]);
+/// ```
 pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &'a mut [u8]), GenError>
   where F: SerializeFn<&'a mut [u8]> {
 
@@ -73,7 +140,22 @@ pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &
     }
 }
 
-fn pair<F, G, I>(first: F, second: G) -> impl SerializeFn<I>
+/// applies 2 serializers in sequence
+///
+/// ```rust
+/// use cookie_factory::{length, pair, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let len = {
+///   let (len, _) = length(pair(string("abcd"), string("efgh")))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 8usize);
+/// assert_eq!(&buf[..8], &b"abcdefgh"[..]);
+/// ```
+pub fn pair<F, G, I>(first: F, second: G) -> impl SerializeFn<I>
 where F: SerializeFn<I>,
       G: SerializeFn<I> {
 
@@ -83,7 +165,22 @@ where F: SerializeFn<I>,
   }
 }
 
-fn cond<F, G, I>(condition: bool, f: F) -> impl SerializeFn<I>
+/// applies a serializer if the condition is true
+///
+/// ```rust
+/// use cookie_factory::{length, cond, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let len = {
+///   let (len, _) = length(cond(true, string("abcd")))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 4usize);
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
+pub fn cond<F, I>(condition: bool, f: F) -> impl SerializeFn<I>
 where F: SerializeFn<I>, {
 
   move |out: I| {
@@ -95,6 +192,22 @@ where F: SerializeFn<I>, {
   }
 }
 
+/// applies an iterator of serializers
+///
+/// ```rust
+/// use cookie_factory::{length, all, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let data = vec!["abcd", "efgh", "ijkl"];
+/// let len = {
+///   let (len, _) = length(all(data.iter().map(string)))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 12usize);
+/// assert_eq!(&buf[..12], &b"abcdefghijkl"[..]);
+/// ```
 pub fn all<'a, 'b, G, I, It>(values: It) -> impl SerializeFn<I> + 'a
   where G: SerializeFn<I> + 'b,
         It: 'a + Clone + Iterator<Item=G> {
@@ -324,6 +437,22 @@ pub fn le_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
     le_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
 }
 
+/// applies a generator over an iterator of values, and applies the serializers generated
+///
+/// ```rust
+/// use cookie_factory::{length, many_ref, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let data = vec!["abcd", "efgh", "ijkl"];
+/// let len = {
+///   let (len, _) = length(many_ref(&data, string))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 12usize);
+/// assert_eq!(&buf[..12], &b"abcdefghijkl"[..]);
+/// ```
 pub fn many_ref<'a, E, It, I, F, G, O>(items: I, generator: F) -> impl SerializeFn<O> + 'a
 where
     It: Iterator<Item = E> + Clone + 'a,
@@ -341,6 +470,21 @@ where
     }
 }
 
+/// returns the length of the data that was written, along with the remaining data
+///
+/// ```rust
+/// use cookie_factory::{length,string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let len = {
+///   let (len, _) = length(string("abcd"))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 4usize);
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
 pub fn length<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(usize, &'a mut [u8]), GenError>
   where F: SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
