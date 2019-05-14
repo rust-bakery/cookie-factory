@@ -95,7 +95,6 @@ where F: SerializeFn<I>, {
   }
 }
 
-
 pub fn all<'a, 'b, G, I, It>(values: It) -> impl SerializeFn<I> + 'a
   where G: SerializeFn<I> + 'b,
         It: 'a + Clone + Iterator<Item=G> {
@@ -324,6 +323,17 @@ where
     }
 }
 
+pub fn length<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(usize, &'a mut [u8]), GenError>
+  where F: SerializeFn<&'a mut [u8]> {
+  move |out: &'a mut [u8]| {
+    let start = out.as_ptr() as usize;
+
+    let out = f(out)?;
+
+    let end = out.as_ptr() as usize;
+    Ok((end - start, out))
+  }
+}
 //missing combinators:
 //or
 //empty
