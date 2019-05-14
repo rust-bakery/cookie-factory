@@ -110,12 +110,30 @@ pub fn all<'a, 'b, G, I, It>(values: It) -> impl SerializeFn<I> + 'a
   }
 }
 
-pub fn separated_list<'a, 'b, 'c, F, G, I, It: Iterator<Item=G>, Arg: 'a+Clone+IntoIterator<Item=G, IntoIter=It>>(sep: F, values: Arg) -> impl SerializeFn<I> + 'a
+/// applies an iterator of serializers
+///
+/// ```rust
+/// use cookie_factory::{length, separated_list, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// let data = vec!["abcd", "efgh", "ijkl"];
+/// let len = {
+///   let (len, _) = length(separated_list(string(","), data.iter().map(string)))(&mut buf[..]).unwrap();
+///   len
+/// };
+///
+/// assert_eq!(len, 14usize);
+/// assert_eq!(&buf[..14], &b"abcd,efgh,ijkl"[..]);
+/// ```
+pub fn separated_list<'a, 'b, 'c, F, G, I, It>(sep: F, values: It) -> impl SerializeFn<I> + 'a
   where F: SerializeFn<I> + 'b + 'a,
-        G: SerializeFn<I> + 'c {
+        G: SerializeFn<I> + 'c,
+        It: 'a + Clone + Iterator<Item=G> {
 
   move |mut out: I| {
-    let mut it = values.clone().into_iter();
+    let mut it = values.clone();
+
     match it.next() {
       None => return Ok(out),
       Some(first) => {
