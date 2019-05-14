@@ -96,7 +96,7 @@ where F: SerializeFn<I>, {
 }
 
 
-pub fn _all<'a, 'b, G, I, It: Iterator<Item=G>, Arg: 'a+Clone+IntoIterator<Item=G, IntoIter=It>>(values: Arg) -> impl SerializeFn<I> + 'a
+pub fn all<'a, 'b, G, I, It: Iterator<Item=G>, Arg: 'a+Clone+IntoIterator<Item=G, IntoIter=It>>(values: Arg) -> impl SerializeFn<I> + 'a
   where G: SerializeFn<I> + 'b {
 
   move |mut out: I| {

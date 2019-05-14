@@ -53,7 +53,7 @@ pub struct RequestHeaders<'a> {
 pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c mut[u8]> + 'a {
   move |out: &'c mut [u8]| {
     let out = fn_request_line(&r.method, &r.uri)(out)?;
-    let out = _all(r.headers.iter().map(fn_header))(out)?;
+    let out = all(r.headers.iter().map(fn_header))(out)?;
     let out = string("\r\n")(out)?;
     slice(r.body)(out)
   }
@@ -80,7 +80,7 @@ pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> + 'a
 pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<&'c mut[u8]> + 'a {
   move |out: &'c mut [u8]| {
     let out = fn_request_line(&r.method, &r.uri)(out)?;
-    let out = _all(r.headers.iter().map(fn_header))(out)?;
+    let out = all(r.headers.iter().map(fn_header))(out)?;
     string("\r\n")(out)
   }
 }
