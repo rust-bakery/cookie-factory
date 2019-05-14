@@ -96,11 +96,12 @@ where F: SerializeFn<I>, {
 }
 
 
-pub fn all<'a, 'b, G, I, It: Iterator<Item=G>, Arg: 'a+Clone+IntoIterator<Item=G, IntoIter=It>>(values: Arg) -> impl SerializeFn<I> + 'a
-  where G: SerializeFn<I> + 'b {
+pub fn all<'a, 'b, G, I, It>(values: It) -> impl SerializeFn<I> + 'a
+  where G: SerializeFn<I> + 'b,
+        It: 'a + Clone + Iterator<Item=G> {
 
   move |mut out: I| {
-    let it = values.clone().into_iter();
+    let it = values.clone();
 
     for v in it {
       out = v(out)?;
