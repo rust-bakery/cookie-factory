@@ -21,7 +21,7 @@ impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
 /// assert_eq!(len, 4usize);
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
-pub fn slice<'a, S: 'a + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
+pub fn slice<'a: 'b, 'b, S: 'b + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
     let len = data.as_ref().len();
 
     move |out: &'a mut [u8]| {
