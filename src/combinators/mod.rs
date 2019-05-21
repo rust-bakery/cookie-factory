@@ -128,15 +128,12 @@ pub fn skip<'a>(len: usize) -> impl SerializeFn<&'a mut [u8]> {
 /// ```
 pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &'a mut [u8]), GenError>
   where F: SerializeFn<&'a mut [u8]> {
+    let f = length(f);
 
     move |out: &'a mut [u8]| {
-        unsafe {
-            let ptr = out.as_mut_ptr();
-            let out = f(out)?;
-            let len = out.as_ptr() as usize - ptr as usize;
-
-            Ok((std::slice::from_raw_parts_mut(ptr, len), out))
-        }
+        let ptr = out.as_mut_ptr();
+        let (len, out) = f(out)?;
+        Ok((unsafe { std::slice::from_raw_parts_mut(ptr, len) }, out))
     }
 }
 
