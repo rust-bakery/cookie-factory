@@ -287,6 +287,21 @@ pub fn be_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
+pub fn be_u24<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 3;
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = ((i >> 16) & 0xff) as u8;
+            out[1] = ((i >>  8) & 0xff) as u8;
+            out[2] = ((i      ) & 0xff) as u8;
+            Ok(&mut out[len..])
+        }
+    }
+}
+
 pub fn be_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
    let len = 4;
 
@@ -331,6 +346,10 @@ pub fn be_i16<'a>(i: i16) -> impl SerializeFn<&'a mut [u8]> {
     be_u16(i as u16)
 }
 
+pub fn be_i24<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
+    be_u24(i as u32)
+}
+
 pub fn be_i32<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
     be_u32(i as u32)
 }
@@ -369,6 +388,21 @@ pub fn le_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
         } else {
             out[0] = (i        & 0xff) as u8;
             out[1] = ((i >> 8) & 0xff) as u8;
+            Ok(&mut out[len..])
+        }
+    }
+}
+
+pub fn le_u24<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
+   let len = 3;
+
+    move |out: &'a mut [u8]| {
+        if out.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            out[0] = ((i      ) & 0xff) as u8;
+            out[1] = ((i >>  8) & 0xff) as u8;
+            out[2] = ((i >> 16) & 0xff) as u8;
             Ok(&mut out[len..])
         }
     }
@@ -416,6 +450,10 @@ pub fn le_i8<'a>(i: i8) -> impl SerializeFn<&'a mut [u8]> {
 
 pub fn le_i16<'a>(i: i16) -> impl SerializeFn<&'a mut [u8]> {
     le_u16(i as u16)
+}
+
+pub fn le_i24<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
+    le_u24(i as u32)
 }
 
 pub fn le_i32<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {

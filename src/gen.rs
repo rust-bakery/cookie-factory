@@ -130,24 +130,7 @@ macro_rules! gen_be_u16(
 /// Write an unsigned 3 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 2 {
-            true  => Err(GenError::BufferTooSmall($idx+3)),
-            false => {
-                let v = $val;
-                let v1 : u8 = ((v >> 16) & 0xff) as u8;
-                let v2 : u8 = ((v >>  8) & 0xff) as u8;
-                let v3 : u8 = ((v      ) & 0xff) as u8;
-                $i[$idx  ] = v1;
-                $i[$idx+1] = v2;
-                $i[$idx+2] = v3;
-                Ok(($i,($idx+3)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_u24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_u24($val), $i) );
 );
 
 /// `gen_be_u32!(I, u8) => I -> Result<I,E>`
@@ -185,12 +168,7 @@ macro_rules! gen_be_i16(
 /// Write a signed 3 byte integer.
 #[macro_export]
 macro_rules! gen_be_i24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u24!(($i, $idx), ($val) as u32)
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_i24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_i24($val), $i) );
 );
 
 /// `gen_be_i32!(I, i32) => I -> Result<I,E>`
@@ -239,23 +217,7 @@ macro_rules! gen_le_u16(
 /// Write an unsigned 3 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 2 {
-            true  => Err(GenError::BufferTooSmall($idx+3)),
-            false => {
-                let v1 : u8 = (($val >> 16) & 0xff) as u8;
-                let v2 : u8 = (($val >>  8) & 0xff) as u8;
-                let v3 : u8 = (($val      ) & 0xff) as u8;
-                $i[$idx  ] = v3;
-                $i[$idx+1] = v2;
-                $i[$idx+2] = v1;
-                Ok(($i,($idx+3)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_u24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_u24($val), $i) );
 );
 
 /// `gen_le_u32!(I, u8) => I -> Result<I,E>`
@@ -293,12 +255,7 @@ macro_rules! gen_le_i16(
 /// Write a signed 3 byte integer.
 #[macro_export]
 macro_rules! gen_le_i24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u24!(($i, $idx), ($val) as u32)
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_i24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_i24($val), $i) );
 );
 
 /// `gen_le_i32!(I, i32) => I -> Result<I,E>`
