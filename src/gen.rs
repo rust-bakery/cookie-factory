@@ -974,4 +974,20 @@ mod tests {
         );
         if let Err(GenError::InvalidOffset) = r { } else { panic!("unexpected result {:?}",r) };
     }
+
+    #[test]
+    fn test_gen_be_u16() {
+        let mut mem : [u8; 2] = [0; 2];
+        let s = &mut mem[..];
+        let r = gen_be_u16!((s, 0), 342);
+        assert_eq!(r, Ok((&mut [1, 86][..], 2)));
+    }
+
+    #[test]
+    fn test_gen_le_u16() {
+        let mut mem : [u8; 2] = [0; 2];
+        let s = &mut mem[..];
+        let r = gen_le_u16!((s, 0), 342);
+        assert_eq!(r, Ok((&mut [86, 1][..], 2)));
+    }
 }

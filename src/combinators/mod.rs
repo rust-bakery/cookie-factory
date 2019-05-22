@@ -1,3 +1,4 @@
+use cftrait::CookieFactory;
 use gen::GenError;
 use std::io::{Cursor, Write};
 use std::fmt;
@@ -5,6 +6,35 @@ use std::fmt;
 pub trait SerializeFn<I>: Fn(I) -> Result<I, GenError> {}
 
 impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
+
+macro_rules! cookie_factory_serializer(
+    ($t:tt, $be:ident) => (
+        pub fn $be<'a>(i: $t) -> impl SerializeFn<&'a mut [u8]> {
+            move |out: &'a mut [u8]| {
+                i.serialize(out)
+            }
+        }
+    );
+    ($t:tt, $be:ident, $le:ident) => (
+        cookie_factory_serializer!($t, $be);
+        pub fn $le<'a>(i: $t) -> impl SerializeFn<&'a mut [u8]> {
+            move |out: &'a mut [u8]| {
+                i.serialize_le(out)
+            }
+        }
+    );
+);
+
+cookie_factory_serializer!(u8,  be_u8,  le_u8);
+cookie_factory_serializer!(u16, be_u16, le_u16);
+cookie_factory_serializer!(u32, be_u32, le_u32);
+cookie_factory_serializer!(u64, be_u64, le_u64);
+cookie_factory_serializer!(i8,  be_i8,  le_i8);
+cookie_factory_serializer!(i16, be_i16, le_i16);
+cookie_factory_serializer!(i32, be_i32, le_i32);
+cookie_factory_serializer!(i64, be_i64, le_i64);
+cookie_factory_serializer!(f32, be_f32, le_f32);
+cookie_factory_serializer!(f64, be_f64, le_f64);
 
 /// writes a byte slice to the output
 ///
@@ -22,19 +52,12 @@ impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
 pub fn slice<'a, 'b, S: 'b + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
-    let len = data.as_ref().len();
-
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            (&mut out[..len]).copy_from_slice(data.as_ref());
-            Ok(&mut out[len..])
-        }
+        data.as_ref().serialize(out)
     }
 }
 
-/// writes a byte slice to the output
+/// writes a string to the output
 ///
 /// ```rust
 /// use cookie_factory::{length, string};
@@ -50,15 +73,8 @@ pub fn slice<'a, 'b, S: 'b + AsRef<[u8]>>(data: S) -> impl SerializeFn<&'a mut [
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
 pub fn string<'a, S: 'a+AsRef<str>>(data: S) -> impl SerializeFn<&'a mut [u8]> {
-
-    let len = data.as_ref().len();
     move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            (&mut out[..len]).copy_from_slice(data.as_ref().as_bytes());
-            Ok(&mut out[len..])
-        }
+        data.as_ref().serialize(out)
     }
 }
 
@@ -260,33 +276,6 @@ pub fn separated_list<'a, 'b, 'c, F, G, I, It>(sep: F, values: It) -> impl Seria
   }
 }
 
-pub fn be_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 1;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = i;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
-pub fn be_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 2;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = ((i >> 8) & 0xff) as u8;
-            out[1] = (i        & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
 pub fn be_u24<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
    let len = 3;
 
@@ -302,95 +291,8 @@ pub fn be_u24<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
-pub fn be_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 4;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = ((i >> 24) & 0xff) as u8;
-            out[1] = ((i >> 16) & 0xff) as u8;
-            out[2] = ((i >> 8)  & 0xff) as u8;
-            out[3] = (i         & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
-pub fn be_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 8;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = ((i >> 56) & 0xff) as u8;
-            out[1] = ((i >> 48) & 0xff) as u8;
-            out[2] = ((i >> 40) & 0xff) as u8;
-            out[3] = ((i >> 32) & 0xff) as u8;
-            out[4] = ((i >> 24) & 0xff) as u8;
-            out[5] = ((i >> 16) & 0xff) as u8;
-            out[6] = ((i >> 8)  & 0xff) as u8;
-            out[7] = (i         & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
-pub fn be_i8<'a>(i: i8) -> impl SerializeFn<&'a mut [u8]> {
-    be_u8(i as u8)
-}
-
-pub fn be_i16<'a>(i: i16) -> impl SerializeFn<&'a mut [u8]> {
-    be_u16(i as u16)
-}
-
 pub fn be_i24<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
     be_u24(i as u32)
-}
-
-pub fn be_i32<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
-    be_u32(i as u32)
-}
-
-pub fn be_i64<'a>(i: i64) -> impl SerializeFn<&'a mut [u8]> {
-    be_u64(i as u64)
-}
-
-pub fn be_f32<'a>(i: f32) -> impl SerializeFn<&'a mut [u8]> {
-    be_u32(unsafe { std::mem::transmute::<f32, u32>(i) })
-}
-
-pub fn be_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
-    be_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
-}
-
-pub fn le_u8<'a>(i: u8) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 1;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = i;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
-pub fn le_u16<'a>(i: u16) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 2;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = (i        & 0xff) as u8;
-            out[1] = ((i >> 8) & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
-    }
 }
 
 pub fn le_u24<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
@@ -408,68 +310,8 @@ pub fn le_u24<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
     }
 }
 
-pub fn le_u32<'a>(i: u32) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 4;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = (i         & 0xff) as u8;
-            out[1] = ((i >> 8)  & 0xff) as u8;
-            out[2] = ((i >> 16) & 0xff) as u8;
-            out[3] = ((i >> 24) & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
-pub fn le_u64<'a>(i: u64) -> impl SerializeFn<&'a mut [u8]> {
-   let len = 8;
-
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            out[0] = (i         & 0xff) as u8;
-            out[1] = ((i >> 8)  & 0xff) as u8;
-            out[2] = ((i >> 16) & 0xff) as u8;
-            out[3] = ((i >> 24) & 0xff) as u8;
-            out[4] = ((i >> 32) & 0xff) as u8;
-            out[5] = ((i >> 40) & 0xff) as u8;
-            out[6] = ((i >> 48) & 0xff) as u8;
-            out[7] = ((i >> 56) & 0xff) as u8;
-            Ok(&mut out[len..])
-        }
-    }
-}
-
-pub fn le_i8<'a>(i: i8) -> impl SerializeFn<&'a mut [u8]> {
-    le_u8(i as u8)
-}
-
-pub fn le_i16<'a>(i: i16) -> impl SerializeFn<&'a mut [u8]> {
-    le_u16(i as u16)
-}
-
 pub fn le_i24<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
     le_u24(i as u32)
-}
-
-pub fn le_i32<'a>(i: i32) -> impl SerializeFn<&'a mut [u8]> {
-    le_u32(i as u32)
-}
-
-pub fn le_i64<'a>(i: i64) -> impl SerializeFn<&'a mut [u8]> {
-    le_u64(i as u64)
-}
-
-pub fn le_f32<'a>(i: f32) -> impl SerializeFn<&'a mut [u8]> {
-    le_u32(unsafe { std::mem::transmute::<f32, u32>(i) })
-}
-
-pub fn le_f64<'a>(i: f64) -> impl SerializeFn<&'a mut [u8]> {
-    le_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
 }
 
 /// applies a generator over an iterator of values, and applies the serializers generated

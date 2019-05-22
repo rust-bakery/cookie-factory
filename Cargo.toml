@@ -16,7 +16,8 @@ include = [
   "README.md",
   ".gitignore",
   "src/*.rs",
-  "src/combinators/*.rs"
+  "src/combinators/*.rs",
+  "src/cftrait/*.rs"
 ]
 
 [badges]

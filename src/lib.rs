@@ -16,3 +16,5 @@ pub use gen::*;
 mod combinators;
 pub use combinators::*;
 
+mod cftrait;
+pub use cftrait::*;
