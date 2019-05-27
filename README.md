@@ -1,7 +1,7 @@
 # cookie-factory
 
 [![LICENSE](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build Status](https://travis-ci.org/Geal/cookie-factory.svg?branch=master)](https://travis-ci.org/geal/cookie-factory)
+[![Build Status](https://travis-ci.org/rust-bakery/cookie-factory.svg?branch=master)](https://travis-ci.org/rust-bakery/cookie-factory)
 [![Crates.io Version](https://img.shields.io/crates/v/cookie-factory.svg)](https://crates.io/crates/cookie-factory)
 
 serialization library built with a combinator design similar to nom.
