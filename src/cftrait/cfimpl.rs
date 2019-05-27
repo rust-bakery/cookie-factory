@@ -1,4 +1,4 @@
-use crate::{CookieFactorySerializable, GenError};
+use crate::{CookieFactory, CookieFactorySerializable, GenError};
 
 use std::mem;
 
@@ -67,25 +67,31 @@ impl CookieFactorySerializable for f64 {
     }
 }
 
-impl CookieFactorySerializable for [u8] {
+impl<S: CookieFactory> CookieFactorySerializable for [S] {
     fn gen_size(&self) -> Option<usize> {
-        Some(self.len())
+        self.iter().fold(Some(0), |acc, el| if let (Some(acc), Some(sz)) = (acc, el.gen_size()) { Some(acc + sz) } else { None } )
     }
 
     fn do_serialize<'a>(&self, buf: &'a mut [u8]) -> Result<&'a mut [u8], GenError> {
-        let len = self.len();
-        (&mut buf[..len]).copy_from_slice(self);
-        Ok(&mut buf[len..])
+        self.iter().fold(Ok(buf), |acc, el| acc.and_then(|buf| el.serialize(buf)))
+    }
+
+    fn do_serialize_le<'a>(&self, buf: &'a mut [u8]) -> Result<&'a mut [u8], GenError> {
+        self.iter().fold(Ok(buf), |acc, el| acc.and_then(|buf| el.serialize_le(buf)))
     }
 }
 
-impl<'s> CookieFactorySerializable for &'s [u8] {
+impl<'s, S: CookieFactory> CookieFactorySerializable for &'s [S] {
     fn gen_size(&self) -> Option<usize> {
         (*self).gen_size()
     }
 
     fn do_serialize<'a>(&self, buf: &'a mut [u8]) -> Result<&'a mut [u8], GenError> {
         (*self).do_serialize(buf)
+    }
+
+    fn do_serialize_le<'a>(&self, buf: &'a mut [u8]) -> Result<&'a mut [u8], GenError> {
+        (*self).do_serialize_le(buf)
     }
 }
 
