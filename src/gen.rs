@@ -1,5 +1,7 @@
 //! Generator combinator, based on [nom](https://github.com/Geal/nom)'s syntax.
 
+use crate::combinators::*;
+
 use std::{error, fmt};
 
 /// Base type for generator errors
@@ -24,158 +26,62 @@ impl fmt::Display for GenError {
 
 impl error::Error for GenError {}
 
+pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError>
+  where G: SerializeFn<&'a mut [u8]> {
+      let (buf, offset) = x;
+      let start = buf.as_mut_ptr();
+      let buf_len = buf.len();
+      let len = length(gen)(&mut buf[offset..]).map(|tup| tup.0)?;
+      let buf = unsafe { std::slice::from_raw_parts_mut(start, buf_len) };
+      Ok((buf, offset + len))
+}
+
 /// Write an unsigned 1 byte integer. Equivalent to `gen_be_u8!(v)`
 #[inline]
 pub fn set_be_u8(x:(&mut [u8],usize),v:u8) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx {
-        true  => Err(GenError::BufferTooSmall(idx+1)),
-        false => {
-            i[idx] = v;
-            Ok((i,idx+1))
-        }
-    }
+    legacy_wrap(be_u8(v), x)
 }
 
 /// Write an unsigned 2 bytes integer (big-endian order). Equivalent to `gen_be_u16!(v)`
 #[inline]
 pub fn set_be_u16(x:(&mut [u8],usize),v:u16) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx+1 {
-        true  => Err(GenError::BufferTooSmall(idx+2)),
-        false => {
-            let v1 : u8 = ((v >>  8) & 0xff) as u8;
-            let v2 : u8 = ((v      ) & 0xff) as u8;
-            i[idx  ] = v1;
-            i[idx+1] = v2;
-            Ok((i,idx+2))
-        }
-    }
+    legacy_wrap(be_u16(v), x)
 }
 
 /// Write an unsigned 4 bytes integer (big-endian order). Equivalent to `gen_be_u32!(v)`
 #[inline]
 pub fn set_be_u32(x:(&mut [u8],usize),v:u32) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx+3 {
-        true  => Err(GenError::BufferTooSmall(idx+4)),
-        false => {
-            let v1 : u8 = ((v >> 24) & 0xff) as u8;
-            let v2 : u8 = ((v >> 16) & 0xff) as u8;
-            let v3 : u8 = ((v >>  8) & 0xff) as u8;
-            let v4 : u8 = ((v      ) & 0xff) as u8;
-            i[idx  ] = v1;
-            i[idx+1] = v2;
-            i[idx+2] = v3;
-            i[idx+3] = v4;
-            Ok((i,idx+4))
-        }
-    }
+    legacy_wrap(be_u32(v), x)
 }
 
 /// Write an unsigned 8 bytes integer (big-endian order). Equivalent to `gen_be_u64!(v)`
 #[inline]
 pub fn set_be_u64(x:(&mut [u8],usize),v:u64) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx+3 {
-        true  => Err(GenError::BufferTooSmall(idx+8)),
-        false => {
-            let v1 : u8 = ((v >> 56) & 0xff) as u8;
-            let v2 : u8 = ((v >> 48) & 0xff) as u8;
-            let v3 : u8 = ((v >> 40) & 0xff) as u8;
-            let v4 : u8 = ((v >> 32) & 0xff) as u8;
-            let v5 : u8 = ((v >> 24) & 0xff) as u8;
-            let v6 : u8 = ((v >> 16) & 0xff) as u8;
-            let v7 : u8 = ((v >>  8) & 0xff) as u8;
-            let v8 : u8 = ((v      ) & 0xff) as u8;
-            i[idx  ] = v1;
-            i[idx+1] = v2;
-            i[idx+2] = v3;
-            i[idx+3] = v4;
-            i[idx+4] = v5;
-            i[idx+5] = v6;
-            i[idx+6] = v7;
-            i[idx+7] = v8;
-            Ok((i,idx+8))
-        }
-    }
+    legacy_wrap(be_u64(v), x)
 }
 
 /// Write an unsigned 1 byte integer. Equivalent to `gen_le_u8!(v)`
 #[inline]
 pub fn set_le_u8(x:(&mut [u8],usize),v:u8) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx {
-        true  => Err(GenError::BufferTooSmall(idx+1)),
-        false => {
-            i[idx] = v;
-            Ok((i,idx+1))
-        }
-    }
+    legacy_wrap(le_u8(v), x)
 }
 
 /// Write an unsigned 2 bytes integer (little-endian order). Equivalent to `gen_le_u16!(v)`
 #[inline]
 pub fn set_le_u16(x:(&mut [u8],usize),v:u16) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx+1 {
-        true  => Err(GenError::BufferTooSmall(idx+2)),
-        false => {
-            let v1 : u8 = ((v >>  8) & 0xff) as u8;
-            let v2 : u8 = ((v      ) & 0xff) as u8;
-            i[idx  ] = v2;
-            i[idx+1] = v1;
-            Ok((i,idx+2))
-        }
-    }
+    legacy_wrap(le_u16(v), x)
 }
 
 /// Write an unsigned 4 bytes integer (little-endian order). Equivalent to `gen_le_u32!(v)`
 #[inline]
 pub fn set_le_u32(x:(&mut [u8],usize),v:u32) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx+3 {
-        true  => Err(GenError::BufferTooSmall(idx+4)),
-        false => {
-            let v1 : u8 = ((v >> 24) & 0xff) as u8;
-            let v2 : u8 = ((v >> 16) & 0xff) as u8;
-            let v3 : u8 = ((v >>  8) & 0xff) as u8;
-            let v4 : u8 = ((v      ) & 0xff) as u8;
-            i[idx  ] = v4;
-            i[idx+1] = v3;
-            i[idx+2] = v2;
-            i[idx+3] = v1;
-            Ok((i,idx+4))
-        }
-    }
+    legacy_wrap(le_u32(v), x)
 }
 
 /// Write an unsigned 8 bytes integer (little-endian order). Equivalent to `gen_le_u64!(v)`
 #[inline]
 pub fn set_le_u64(x:(&mut [u8],usize),v:u64) -> Result<(&mut [u8],usize),GenError> {
-    let (i,idx) = x;
-    match i.len() <= idx+3 {
-        true  => Err(GenError::BufferTooSmall(idx+8)),
-        false => {
-            let v1 : u8 = ((v >> 56) & 0xff) as u8;
-            let v2 : u8 = ((v >> 48) & 0xff) as u8;
-            let v3 : u8 = ((v >> 40) & 0xff) as u8;
-            let v4 : u8 = ((v >> 32) & 0xff) as u8;
-            let v5 : u8 = ((v >> 24) & 0xff) as u8;
-            let v6 : u8 = ((v >> 16) & 0xff) as u8;
-            let v7 : u8 = ((v >>  8) & 0xff) as u8;
-            let v8 : u8 = ((v      ) & 0xff) as u8;
-            i[idx  ] = v8;
-            i[idx+1] = v7;
-            i[idx+2] = v6;
-            i[idx+3] = v5;
-            i[idx+4] = v4;
-            i[idx+5] = v3;
-            i[idx+6] = v2;
-            i[idx+7] = v1;
-            Ok((i,idx+8))
-        }
-    }
+    legacy_wrap(le_u64(v), x)
 }
 
 /// `gen_align!(I, u8) => I -> Result<I,E>`
@@ -193,7 +99,7 @@ macro_rules! gen_align(
             }
         }
     );
-    ($i:expr, $val:expr) => ( gen_skip!(($i.0, $i.1), $val) );
+    ($i:expr, $val:expr) => ( gen_align!(($i.0, $i.1), $val) );
 );
 
 /// `gen_skip!(I, u8) => I -> Result<I,E>`
@@ -202,13 +108,7 @@ macro_rules! gen_align(
 /// Does not modify the output buffer, but increments the output index.
 #[macro_export]
 macro_rules! gen_skip(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() < $idx+$val {
-            true  => Err(GenError::BufferTooSmall($idx+$val)),
-            false => { Ok(($i,($idx+$val))) },
-        }
-    );
-    ($i:expr, $val:expr) => ( gen_skip!(($i.0, $i.1), $val) );
+    ($i:expr, $val:expr) => ( legacy_wrap(skip($val as usize), $i) );
 );
 
 
@@ -216,90 +116,28 @@ macro_rules! gen_skip(
 /// Write an unsigned 1 byte integer.
 #[macro_export]
 macro_rules! gen_be_u8(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx {
-            true  => Err(GenError::BufferTooSmall($idx+1)),
-            false => {
-                $i[$idx] = $val;
-                Ok(($i,($idx+1)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_u8!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_u8($val), $i) );
 );
 
 /// `gen_be_u16!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 2 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u16(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 1 {
-            true  => Err(GenError::BufferTooSmall($idx+2)),
-            false => {
-                let v = $val;
-                let v1 : u8 = ((v >>  8) & 0xff) as u8;
-                let v2 : u8 = ((v      ) & 0xff) as u8;
-                $i[$idx  ] = v1;
-                $i[$idx+1] = v2;
-                Ok(($i,($idx+2)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_u16!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_u16($val), $i) );
 );
 
 /// `gen_be_u24!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 3 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 2 {
-            true  => Err(GenError::BufferTooSmall($idx+3)),
-            false => {
-                let v = $val;
-                let v1 : u8 = ((v >> 16) & 0xff) as u8;
-                let v2 : u8 = ((v >>  8) & 0xff) as u8;
-                let v3 : u8 = ((v      ) & 0xff) as u8;
-                $i[$idx  ] = v1;
-                $i[$idx+1] = v2;
-                $i[$idx+2] = v3;
-                Ok(($i,($idx+3)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_u24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_u24($val), $i) );
 );
 
 /// `gen_be_u32!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 4 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u32(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 3 {
-            true  => Err(GenError::BufferTooSmall($idx+4)),
-            false => {
-                let v = $val;
-                let v1 : u8 = ((v >> 24) & 0xff) as u8;
-                let v2 : u8 = ((v >> 16) & 0xff) as u8;
-                let v3 : u8 = ((v >>  8) & 0xff) as u8;
-                let v4 : u8 = ((v      ) & 0xff) as u8;
-                $i[$idx  ] = v1;
-                $i[$idx+1] = v2;
-                $i[$idx+2] = v3;
-                $i[$idx+3] = v4;
-                Ok(($i,($idx+4)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_u32!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_u32($val), $i) );
 );
 
 /// `gen_be_u64!(I, u8) => I -> Result<I,E>`
@@ -309,195 +147,84 @@ macro_rules! gen_be_u32(
 /// ```
 #[macro_export]
 macro_rules! gen_be_u64(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 7 {
-            true  => Err(GenError::BufferTooSmall($idx+8)),
-            false => {
-                let v = $val;
-                let v1 : u8 = ((v >> 56) & 0xff) as u8;
-                let v2 : u8 = ((v >> 48) & 0xff) as u8;
-                let v3 : u8 = ((v >> 40) & 0xff) as u8;
-                let v4 : u8 = ((v >> 32) & 0xff) as u8;
-                let v5 : u8 = ((v >> 24) & 0xff) as u8;
-                let v6 : u8 = ((v >> 16) & 0xff) as u8;
-                let v7 : u8 = ((v >>  8) & 0xff) as u8;
-                let v8 : u8 = ((v      ) & 0xff) as u8;
-                $i[$idx  ] = v1;
-                $i[$idx+1] = v2;
-                $i[$idx+2] = v3;
-                $i[$idx+3] = v4;
-                $i[$idx+4] = v5;
-                $i[$idx+5] = v6;
-                $i[$idx+6] = v7;
-                $i[$idx+7] = v8;
-                Ok(($i,($idx+8)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_u64!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_u64($val), $i) );
 );
 
 /// `gen_be_i8!(I, i8) => I -> Result<I,E>`
 /// Write a signed 1 byte integer.
 #[macro_export]
 macro_rules! gen_be_i8(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u8!(($i, $idx), ($val) as u8)
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_i8!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_i8($val), $i) );
 );
 
 /// `gen_be_i16!(I, i16) => I -> Result<I,E>`
 /// Write a signed 2 byte integer.
 #[macro_export]
 macro_rules! gen_be_i16(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u16!(($i, $idx), ($val) as u16)
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_i16!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_i16($val), $i) );
 );
 
 /// `gen_be_i24!(I, i24) => I -> Result<I,E>`
 /// Write a signed 3 byte integer.
 #[macro_export]
 macro_rules! gen_be_i24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u24!(($i, $idx), ($val) as u32)
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_i24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_i24($val), $i) );
 );
 
 /// `gen_be_i32!(I, i32) => I -> Result<I,E>`
 /// Write a signed 4 byte integer.
 #[macro_export]
 macro_rules! gen_be_i32(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u32!(($i, $idx), ($val) as u32)
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_i32!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_i32($val), $i) );
 );
 
 /// `gen_be_i64!(I, i64) => I -> Result<I,E>`
 /// Write a signed 8 byte integer.
 #[macro_export]
 macro_rules! gen_be_i64(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u64!(($i, $idx), ($val) as u64)
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_i64!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_i64($val), $i) );
 );
 
 /// `gen_be_f32!(I, f32) => I -> Result<I,E>`
 /// Write a 4 byte float.
 #[macro_export]
 macro_rules! gen_be_f32(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u32!(($i, $idx), unsafe { ::std::mem::transmute::<f32, u32>($val) })
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_f32!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_f32($val), $i) );
 );
 
 /// `gen_be_f64!(I, f64) => I -> Result<I,E>`
 /// Write a 8 byte float.
 #[macro_export]
 macro_rules! gen_be_f64(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_be_u64!(($i, $idx), unsafe { ::std::mem::transmute::<f64, u64>($val) })
-    );
-    ($i:expr, $val:expr) => (
-        gen_be_f64!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::be_f64($val), $i) );
 );
 
 /// `gen_le_u8!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 1 byte integer.
 #[macro_export]
 macro_rules! gen_le_u8(
-    (($i:expr, $idx:expr), $val:expr) => ( gen_be_u8!(($i, $idx), $val) );
-    ($i:expr, $val:expr) => ( gen_be_u8!(($i.0, $i.1), $val) );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_u8($val), $i) );
 );
 
 /// `gen_le_u16!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 2 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u16(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 1 {
-            true  => Err(GenError::BufferTooSmall($idx+2)),
-            false => {
-                let v1 : u8 = (($val >>  8) & 0xff) as u8;
-                let v2 : u8 = (($val      ) & 0xff) as u8;
-                $i[$idx  ] = v2;
-                $i[$idx+1] = v1;
-                Ok(($i,($idx+2)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_u16!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_u16($val), $i) );
 );
 
 /// `gen_le_u24!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 3 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 2 {
-            true  => Err(GenError::BufferTooSmall($idx+3)),
-            false => {
-                let v1 : u8 = (($val >> 16) & 0xff) as u8;
-                let v2 : u8 = (($val >>  8) & 0xff) as u8;
-                let v3 : u8 = (($val      ) & 0xff) as u8;
-                $i[$idx  ] = v3;
-                $i[$idx+1] = v2;
-                $i[$idx+2] = v1;
-                Ok(($i,($idx+3)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_u24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_u24($val), $i) );
 );
 
 /// `gen_le_u32!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 4 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u32(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 3 {
-            true  => Err(GenError::BufferTooSmall($idx+4)),
-            false => {
-                let v1 : u8 = (($val >> 24) & 0xff) as u8;
-                let v2 : u8 = (($val >> 16) & 0xff) as u8;
-                let v3 : u8 = (($val >>  8) & 0xff) as u8;
-                let v4 : u8 = (($val      ) & 0xff) as u8;
-                $i[$idx  ] = v4;
-                $i[$idx+1] = v3;
-                $i[$idx+2] = v2;
-                $i[$idx+3] = v1;
-                Ok(($i,($idx+4)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_u32!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_u32($val), $i) );
 );
 
 /// `gen_le_u64!(I, u8) => I -> Result<I,E>`
@@ -507,118 +234,56 @@ macro_rules! gen_le_u32(
 /// ```
 #[macro_export]
 macro_rules! gen_le_u64(
-    (($i:expr, $idx:expr), $val:expr) => (
-        match $i.len() <= $idx + 7 {
-            true  => Err(GenError::BufferTooSmall($idx+8)),
-            false => {
-                let v = $val;
-                let v1 : u8 = ((v >> 56) & 0xff) as u8;
-                let v2 : u8 = ((v >> 48) & 0xff) as u8;
-                let v3 : u8 = ((v >> 40) & 0xff) as u8;
-                let v4 : u8 = ((v >> 32) & 0xff) as u8;
-                let v5 : u8 = ((v >> 24) & 0xff) as u8;
-                let v6 : u8 = ((v >> 16) & 0xff) as u8;
-                let v7 : u8 = ((v >>  8) & 0xff) as u8;
-                let v8 : u8 = ((v      ) & 0xff) as u8;
-                $i[$idx  ] = v8;
-                $i[$idx+1] = v7;
-                $i[$idx+2] = v6;
-                $i[$idx+3] = v5;
-                $i[$idx+4] = v4;
-                $i[$idx+5] = v3;
-                $i[$idx+6] = v2;
-                $i[$idx+7] = v1;
-                Ok(($i,($idx+8)))
-            }
-        }
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_u64!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_u64($val), $i) );
 );
 
 /// `gen_le_i8!(I, i8) => I -> Result<I,E>`
 /// Write a signed 1 byte integer.
 #[macro_export]
 macro_rules! gen_le_i8(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u8!(($i, $idx), ($val) as u8)
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_i8!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_i8($val), $i) );
 );
 
 /// `gen_le_i16!(I, i16) => I -> Result<I,E>`
 /// Write a signed 2 byte integer.
 #[macro_export]
 macro_rules! gen_le_i16(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u16!(($i, $idx), ($val) as u16)
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_i16!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_i16($val), $i) );
 );
 
 /// `gen_le_i24!(I, i24) => I -> Result<I,E>`
 /// Write a signed 3 byte integer.
 #[macro_export]
 macro_rules! gen_le_i24(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u24!(($i, $idx), ($val) as u32)
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_i24!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_i24($val), $i) );
 );
 
 /// `gen_le_i32!(I, i32) => I -> Result<I,E>`
 /// Write a signed 4 byte integer.
 #[macro_export]
 macro_rules! gen_le_i32(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u32!(($i, $idx), ($val) as u32)
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_i32!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_i32($val), $i) );
 );
 
 /// `gen_le_i64!(I, i64) => I -> Result<I,E>`
 /// Write a signed 8 byte integer.
 #[macro_export]
 macro_rules! gen_le_i64(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u64!(($i, $idx), ($val) as u64)
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_i64!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_i64($val), $i) );
 );
 
 /// `gen_le_f32!(I, f32) => I -> Result<I,E>`
 /// Write a 4 byte float.
 #[macro_export]
 macro_rules! gen_le_f32(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u32!(($i, $idx), unsafe { ::std::mem::transmute::<f32, u32>(o)($val) })
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_f32!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_f32($val), $i) );
 );
 
 /// `gen_le_f64!(I, f64) => I -> Result<I,E>`
 /// Write a 8 byte float.
 #[macro_export]
 macro_rules! gen_le_f64(
-    (($i:expr, $idx:expr), $val:expr) => (
-        gen_le_u64!(($i, $idx), unsafe { ::std::mem::transmute::<f64, u64>(o)($val) })
-    );
-    ($i:expr, $val:expr) => (
-        gen_le_f64!(($i.0, $i.1), $val)
-    );
+    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::le_f64($val), $i) );
 );
 
 
@@ -642,8 +307,7 @@ macro_rules! gen_copy(
 /// Writes a slice, copying it entirely to the output buffer.
 #[macro_export]
 macro_rules! gen_slice(
-    (($i:expr, $idx:expr), $val:expr) => ( gen_copy!(($i,$idx), $val, $val.len()) );
-    ($i:expr, $val:expr) => ( gen_copy!(($i.0,$i.1), $val, $val.len()) );
+    ($i:expr, $val:expr) => ( legacy_wrap(slice($val), $i) );
 );
 
 #[macro_export]
@@ -912,13 +576,13 @@ macro_rules! gen_at_offset(
 #[macro_export]
 macro_rules! gen_at_rel_offset(
     (($i:expr, $idx:expr), $rel_offset:expr, $f:ident( $($args:tt)* )) => (
-        match ($rel_offset as i32).overflowing_add($idx).1 {
+        match ($rel_offset as i32).overflowing_add($idx as i32).1 {
             (s,false) if s > 0 => { gen_at_offset!(($i,$idx),s as usize,$f($($args)*)) },
             _                  => Err(GenError::InvalidOffset),
         }
     );
     (($i:expr, $idx:expr), $rel_offset:expr, $submac:ident!( $($args:tt)* )) => (
-        match ($rel_offset as i32).overflowing_add($idx) {
+        match ($rel_offset as i32).overflowing_add($idx as i32) {
             (s,false) if s > 0 => { gen_at_offset!(($i,$idx),s as usize,$submac!($($args)*)) },
             _                  => Err(GenError::InvalidOffset),
         }
@@ -1225,9 +889,12 @@ mod tests {
         let s = &mut mem[..];
         let v = [1, 2, 3, 4];
         let expected = [0, 4, 1, 2, 3, 4, 0, 0];
+        macro_rules! gen_be_usize_as_u16(
+            ($i:expr, $val:expr) => ( set_be_u16($i, $val as u16) );
+        );
         let r = do_gen!(
             (s,0),
-            gen_length_slice!(gen_be_u16 >> v)
+            gen_length_slice!(gen_be_usize_as_u16 >> v)
         );
         match r {
             Ok((b,idx)) => {
@@ -1247,7 +914,7 @@ mod tests {
             (s,0),
             start: gen_be_u8!(1) >>
                    gen_align!(4) >>
-            end:   gen_be_u16!(end-start)
+            end:   gen_be_u16!((end-start) as u16)
         );
         match r {
             Ok((b,idx)) => {
