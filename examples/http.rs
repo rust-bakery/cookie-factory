@@ -1,5 +1,3 @@
-#![feature(test)]
-extern crate test;
 extern crate cookie_factory;
 
 use std::iter::repeat;
