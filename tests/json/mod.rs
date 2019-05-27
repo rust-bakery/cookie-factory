@@ -32,17 +32,12 @@ pub fn gen_bool<'a>(b: bool) -> impl SerializeFn<&'a mut [u8]> {
 
 #[inline(always)]
 pub fn gen_num<'a>(b: f64) -> impl SerializeFn<&'a mut [u8]> {
-  /*move |out: &'a mut [u8]| {
-    let s = format!("{}", b);
-    string(s)(out)
-  }*/
   string("1234.56")
 }
 
 pub fn gen_array<'a, 'b: 'a>(arr: &'b [JsonValue]) -> impl SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
     let out = string("[")(out)?;
-    //let out = separated_list(string(","), |i, v| gen_json_value(v)(i), arr)(out)?;
     let out = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
     string("]")(out)
   }
@@ -59,9 +54,7 @@ pub fn gen_key_value<'a, 'b: 'a>(kv: (&'b String, &'b JsonValue)) -> impl Serial
 pub fn gen_object<'a, 'b: 'a>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
     let out = string("{")(out)?;
-    //let kv = o.iter().collect::<Vec<_>>();
 
-    //let out = separated_list(string(","), |i, v| gen_key_value(*v)(i), &kv)(out)?;
     let out = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
     string("}")(out)
   }
