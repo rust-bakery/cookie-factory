@@ -50,7 +50,7 @@ pub struct RequestHeaders<'a> {
   pub headers: Vec<Header<'a>>,
 }
 
-pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c mut[u8]> + 'a {
+pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c mut[u8]> {
   move |out: &'c mut [u8]| {
     let out = fn_request_line(&r.method, &r.uri)(out)?;
     let out = all(r.headers.iter().map(fn_header))(out)?;
@@ -59,7 +59,7 @@ pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c
   }
 }
 
-pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>>(method: &'a S, uri: &'a S) -> impl SerializeFn<&'c mut[u8]> + 'a {
+pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>>(method: &'a S, uri: &'a S) -> impl SerializeFn<&'c mut[u8]> {
   move |out: &'c mut [u8]| {
     let out = string(method)(out)?;
     let out = string(" ")(out)?;
@@ -68,7 +68,7 @@ pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>>(method: &'a S, uri: &'a S) -> i
   }
 }
 
-pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> + 'a {
+pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> {
   move |out: &'c mut [u8]| {
     let out = string(h.name)(out)?;
     let out = string(": ")(out)?;
@@ -77,7 +77,7 @@ pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> + 'a
   }
 }
 
-pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<&'c mut[u8]> + 'a {
+pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<&'c mut[u8]> {
   move |out: &'c mut [u8]| {
     let out = fn_request_line(&r.method, &r.uri)(out)?;
     let out = all(r.headers.iter().map(fn_header))(out)?;
@@ -85,7 +85,7 @@ pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl 
   }
 }
 
-pub fn fn_chunk<'a:'c,'c>(sl: &'a[u8]) -> impl SerializeFn<&'c mut[u8]> + 'a {
+pub fn fn_chunk<'a:'c,'c>(sl: &'a[u8]) -> impl SerializeFn<&'c mut[u8]> {
   move |out: &'c mut [u8]| {
     let out = hex(sl.len())(out)?;
     let out = string("\r\n")(out)?;
