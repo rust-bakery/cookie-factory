@@ -31,7 +31,7 @@ pub fn gen_bool<'a>(b: bool) -> impl SerializeFn<&'a mut [u8]> {
 }
 
 #[inline(always)]
-pub fn gen_num<'a>(b: f64) -> impl SerializeFn<&'a mut [u8]> {
+pub fn gen_num<'a>(_b: f64) -> impl SerializeFn<&'a mut [u8]> {
   string("1234.56")
 }
 

@@ -1,8 +1,4 @@
-#![feature(test)]
-extern crate test;
 extern crate cookie_factory;
-
-use cookie_factory::*;
 
 #[path="../tests/http/mod.rs"] mod implementation;
 use implementation::*;

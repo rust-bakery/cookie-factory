@@ -1,6 +1,7 @@
 extern crate cookie_factory;
 
-use std::iter::repeat;
+use cookie_factory::length;
+use std::{str, iter::repeat};
 
 #[path="../tests/http/mod.rs"] mod implementation;
 use implementation::*;
@@ -18,10 +19,11 @@ fn main() {
     body: b"Hello, world!",
   };
 
+  let sr = fn_request(&request);
+
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-  loop {
-    let mut sr = fn_request(&request);
-    let res = sr(&mut buffer).unwrap();
-  }
+  let (size, _buf) = length(sr)(&mut buffer).unwrap();
+
+  println!("result:\n{}", str::from_utf8(&buffer[..size]).unwrap());
 }
 
