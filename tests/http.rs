@@ -33,7 +33,7 @@ mod tests {
       let s2 = &mut mem2[..];
 
       let mut sr = fn_request(&request);
-      let res = sr(s2).unwrap();
+      let (res, _) = sr(s2).unwrap();
       res.as_ptr() as usize
     };
     let index2 = ptr - (&mem2[..]).as_ptr() as usize;

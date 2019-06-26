@@ -33,7 +33,7 @@ pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [
       let (buf, offset) = x;
       let start = buf.as_mut_ptr();
       let buf_len = buf.len();
-      let len = length(gen)(&mut buf[offset..]).map(|tup| tup.0)?;
+      let len = gen(&mut buf[offset..]).map(|tup| tup.1)?;
       let buf = unsafe { std::slice::from_raw_parts_mut(start, buf_len) };
       Ok((buf, offset + len))
 }

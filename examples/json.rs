@@ -2,7 +2,6 @@ extern crate cookie_factory;
 #[macro_use]
 extern crate maplit;
 
-use cookie_factory::length;
 use std::{str, iter::repeat};
 
 #[path="../tests/json/mod.rs"] mod implementation;
@@ -25,7 +24,7 @@ fn main() {
 
   let size = {
     let sr = gen_json_value(&value);
-    let (size, _) = length(sr)(&mut buffer).unwrap();
+    let (_, size) = sr(&mut buffer).unwrap();
     size
   };
 
