@@ -83,17 +83,11 @@ pub fn string<'a, S: 'a+AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
 /// assert_eq!(len, 4usize);
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
-pub fn hex<'a, S: 'a + fmt::UpperHex>(data: S) -> impl SerializeFn<&'a mut [u8]> {
-
-  move |out: &'a mut [u8]| {
-    let mut c = Cursor::new(out);
-    match write!(&mut c, "{:X}", data) {
-      Err(_) => Err(GenError::CustomError(42)),
-      Ok(_) => {
-        let pos = c.position() as usize;
-        let out = c.into_inner();
-        Ok(&mut out[pos..])
-      }
+pub fn hex<'a, S: 'a + fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
+  move |mut out: W| {
+    match write!(out, "{:X}", data) {
+      Err(io) => Err(GenError::IoError(io)),
+      Ok(_)   => Ok(out)
     }
   }
 }
