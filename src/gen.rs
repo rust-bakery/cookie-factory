@@ -2,15 +2,17 @@
 
 use crate::combinators::*;
 
-use std::{error, fmt};
+use std::{error, fmt, io};
 
 /// Base type for generator errors
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum GenError {
     /// Input buffer is too small. Argument is the maximum index that is required
     BufferTooSmall(usize),
     /// Operation asked for accessing an invalid index
     InvalidOffset,
+    /// IoError returned by Write
+    IoError(io::Error),
 
     /// Allocated for custom errors
     CustomError(u32),
