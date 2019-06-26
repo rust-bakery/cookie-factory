@@ -6,6 +6,14 @@ pub trait SerializeFn<I>: Fn(I) -> Result<I, GenError> {}
 
 impl<I, F:  Fn(I) ->Result<I, GenError>> SerializeFn<I> for F {}
 
+pub trait Length {
+    fn length(&self) -> usize;
+}
+
+pub trait Skip {
+    fn skip(mut self, s: usize) -> Self;
+}
+
 macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
     match $out.write($data) {
         Err(io)           => Err(GenError::IoError(io)),
@@ -97,16 +105,16 @@ pub fn hex<'a, S: 'a + fmt::UpperHex>(data: S) -> impl SerializeFn<&'a mut [u8]>
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let out = skip(2)(&mut buf).unwrap();
+/// let out = skip(2)(&mut buf[..]).unwrap();
 ///
 /// assert_eq!(out.len(), 98);
 /// ```
-pub fn skip<'a>(len: usize) -> impl SerializeFn<&'a mut [u8]> {
-    move |out: &'a mut [u8]| {
-        if out.len() < len {
+pub fn skip<'a, W: Length + Skip>(len: usize) -> impl SerializeFn<W> {
+    move |mut out: W| {
+        if out.length() < len {
             Err(GenError::BufferTooSmall(len))
         } else {
-            Ok(&mut out[len..])
+            Ok(out.skip(len))
         }
     }
 }
@@ -461,6 +469,18 @@ pub fn length<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(usize, &'a mut [u
 //text print
 //text upperhex
 //text lowerhex
+
+impl Length for &mut [u8] {
+    fn length(&self) -> usize {
+        self.len()
+    }
+}
+
+impl Skip for &mut [u8] {
+    fn skip(mut self, len: usize) -> Self {
+        &mut self[len..]
+    }
+}
 
 #[cfg(test)]
 mod test {
