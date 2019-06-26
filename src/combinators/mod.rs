@@ -540,3 +540,19 @@ pub fn length<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(usize, &'a mut [u
 //text print
 //text upperhex
 //text lowerhex
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_gen_with_length() {
+        let mut buf = vec![0; 8];
+        let start = buf.as_mut_ptr();
+        let (len_buf, buf) = buf.split_at_mut(4);
+        let (len, buf) = length(string("test"))(buf).unwrap();
+        be_u32(len as u32)(len_buf).unwrap();
+        assert_eq!(buf, &mut []);
+        assert_eq!(unsafe { std::slice::from_raw_parts_mut(start, 8) }, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
+    }
+}
