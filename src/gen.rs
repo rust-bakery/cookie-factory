@@ -96,7 +96,7 @@ macro_rules! gen_align(
         {
             let aligned = $val - ($idx % $val);
             match $i.len() <= $idx+aligned {
-                true  => Err(GenError::BufferTooSmall($idx+aligned)),
+                true  => Err(GenError::BufferTooSmall($idx+aligned - $i.len())),
                 false => { Ok(($i,($idx+aligned))) },
             }
         }
@@ -295,7 +295,7 @@ macro_rules! gen_le_f64(
 macro_rules! gen_copy(
     (($i:expr, $idx:expr), $val:expr, $l:expr) => (
         match $i.len() < $idx+$l {
-            true  => Err(GenError::BufferTooSmall($idx+$l)),
+            true  => Err(GenError::BufferTooSmall($idx+$l - $i.len())),
             false => {
                 $i[$idx..$idx+$l].clone_from_slice(&$val[0..$l]);
                 Ok(($i,($idx+$l)))
@@ -551,7 +551,7 @@ macro_rules! gen_at_offset(
                     Err(e)    => Err(e),
                 }
             },
-            true  => Err(GenError::BufferTooSmall($offset)),
+            true  => Err(GenError::BufferTooSmall($offset - $i.len())),
         }
     );
     (($i:expr, $idx:expr), $offset:expr, $submac:ident!( $($args:tt)* )) => (
@@ -562,7 +562,7 @@ macro_rules! gen_at_offset(
                     Err(e)    => Err(e),
                 }
             },
-            true  => Err(GenError::BufferTooSmall($offset)),
+            true  => Err(GenError::BufferTooSmall($offset - $i.len())),
         }
     );
 );
@@ -838,8 +838,8 @@ mod tests {
                 panic!("buffer shouldn't have had enough space");
             },
             Err(GenError::BufferTooSmall(sz)) => {
-                if sz != v.len() {
-                    panic!("invalid max index returned, expected {} got {}", v.len(), sz);
+                if sz != 1 {
+                    panic!("invalid max index returned, expected {} got {}", 1, sz);
                 }
             },
             Err(e) => {
