@@ -11,7 +11,7 @@ pub trait Length {
 }
 
 pub trait Skip {
-    fn skip(mut self, s: usize) -> Self;
+    fn skip(self, s: usize) -> Result<Self, GenError> where Self: Sized;
 }
 
 macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
@@ -89,13 +89,9 @@ pub fn hex<'a, S: 'a + fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> 
 ///
 /// assert_eq!(out.len(), 98);
 /// ```
-pub fn skip<'a, W: Length + Skip>(len: usize) -> impl SerializeFn<W> {
+pub fn skip<'a, W: Skip>(len: usize) -> impl SerializeFn<W> {
     move |out: W| {
-        if out.length() < len {
-            Err(GenError::BufferTooSmall(len))
-        } else {
-            Ok((out.skip(len), len))
-        }
+        out.skip(len).map(|out| (out, len))
     }
 }
 
@@ -433,15 +429,13 @@ where
 //text upperhex
 //text lowerhex
 
-impl Length for &mut [u8] {
-    fn length(&self) -> usize {
-        self.len()
-    }
-}
-
 impl Skip for &mut [u8] {
-    fn skip(mut self, len: usize) -> Self {
-        &mut self[len..]
+    fn skip(self, len: usize) -> Result<Self, GenError> {
+        if self.len() < len {
+            Err(GenError::BufferTooSmall(len))
+        } else {
+            Ok(&mut self[len..])
+        }
     }
 }
 
