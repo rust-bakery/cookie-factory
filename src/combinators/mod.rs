@@ -17,7 +17,7 @@ pub trait Skip {
 macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
     match $out.write($data) {
         Err(io)           => Err(GenError::IoError(io)),
-        Ok(n) if n < $len => Err(GenError::BufferTooSmall($len)),
+        Ok(n) if n < $len => Err(GenError::BufferTooSmall($len - n)),
         Ok(n)             => Ok(($out, n))
     }
 ));
@@ -432,7 +432,7 @@ where
 impl Skip for &mut [u8] {
     fn skip(self, len: usize) -> Result<Self, GenError> {
         if self.len() < len {
-            Err(GenError::BufferTooSmall(len))
+            Err(GenError::BufferTooSmall(len - self.len()))
         } else {
             Ok(&mut self[len..])
         }

@@ -726,7 +726,7 @@ mod tests {
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
-            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 8),
+            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 5),
             Err(e) => panic!("error {:?}",e),
         }
     }
@@ -737,7 +737,7 @@ mod tests {
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
-            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 8),
+            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 1),
             Err(e) => panic!("error {:?}",e),
         }
     }
@@ -875,8 +875,8 @@ mod tests {
                 panic!("buffer shouldn't have had enough space");
             },
             Err(GenError::BufferTooSmall(sz)) => {
-                if sz != v.len() {
-                    panic!("invalid max index returned, expected {} got {}", v.len(), sz);
+                if sz != 1 {
+                    panic!("invalid max index returned, expected {} got {}", 1, sz);
                 }
             },
             Err(e) => {
