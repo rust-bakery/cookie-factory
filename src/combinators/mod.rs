@@ -2,9 +2,21 @@ use gen::GenError;
 use std::io::Write;
 use std::fmt;
 
-pub trait SerializeFn<I>: Fn(I) -> Result<(I, usize), GenError> {}
+pub type GenResult<I> = Result<(I, usize), GenError>;
 
-impl<I, F:  Fn(I) ->Result<(I, usize), GenError>> SerializeFn<I> for F {}
+pub trait SerializeFn<I>: Fn(I) -> GenResult<I> {}
+
+impl<I, F: Fn(I) -> GenResult<I>> SerializeFn<I> for F {}
+
+pub trait GenChain<I, S: SerializeFn<I>> {
+    fn chain(self, s: &S) -> GenResult<I>;
+}
+
+impl<I, S: SerializeFn<I>> GenChain<I, S> for GenResult<I> {
+    fn chain(self, s: &S) -> GenResult<I> {
+        self.and_then(|(buf, len)| s(buf).map(|(buf, len2)| (buf, len + len2)))
+    }
+}
 
 pub trait Length {
     fn length(&self) -> usize;
@@ -136,8 +148,7 @@ where F: SerializeFn<I>,
       G: SerializeFn<I> {
 
   move |out: I| {
-    let (out, len) = first(out)?;
-    second(out).map(|(out, len2)| (out, len + len2))
+    first(out).chain(&second)
   }
 }
 
@@ -188,17 +199,15 @@ pub fn all<'a, 'b, G, I, It>(values: It) -> impl SerializeFn<I> + 'a
   where G: SerializeFn<I> + 'b,
         It: 'a + Clone + Iterator<Item=G> {
 
-  move |mut out: I| {
+  move |out: I| {
     let it = values.clone();
-    let mut len = 0;
+    let mut res = Ok((out, 0));
 
     for v in it {
-      let (_out, _len) = v(out)?;
-      out = _out;
-      len += _len;
+      res = Ok(res.chain(&v)?);
     }
 
-    Ok((out, len))
+    res
   }
 }
 
@@ -223,27 +232,22 @@ pub fn separated_list<'a, 'b, 'c, F, G, I, It>(sep: F, values: It) -> impl Seria
         G: SerializeFn<I> + 'c,
         It: 'a + Clone + Iterator<Item=G> {
 
-  move |mut out: I| {
+  move |out: I| {
     let mut it = values.clone();
-    let mut len = 0;
+    let mut res = Ok((out, 0));
 
     match it.next() {
-      None => return Ok((out, len)),
+      None => return res,
       Some(first) => {
-        let (_out, _len) = first(out)?;
-        out = _out;
-        len += _len;
+        res = Ok(res.chain(&first)?);
       }
     }
 
     for v in it {
-      let (_out, _len) = sep(out)?;
-      let (_out, _len2) = v(_out)?;
-      out = _out;
-      len += _len + _len2;
+      res = Ok(res.chain(&sep).chain(&v)?);
     }
 
-    Ok((out, len))
+    res
   }
 }
 
@@ -408,14 +412,12 @@ where
     O: 'a
 {
     let items = items.into_iter();
-    move |mut out: O| {
-        let mut len = 0;
+    move |out: O| {
+        let mut res = Ok((out, 0));
         for item in items.clone() {
-            let (_out, _len) = generator(item)(out)?;
-            out = _out;
-            len += _len;
+            res = Ok(res.chain(&generator(item))?);
         }
-        Ok((out, len))
+        res
     }
 }
 
