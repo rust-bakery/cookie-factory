@@ -24,7 +24,7 @@ fn json_test() {
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
   let ptr = {
     let mut sr = gen_json_value(&value);
-    let _res = sr(&mut buffer).unwrap();
+    let (_res, _) = sr(&mut buffer).unwrap();
     _res.as_ptr() as usize
   };
 

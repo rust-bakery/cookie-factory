@@ -2,15 +2,17 @@
 
 use crate::combinators::*;
 
-use std::{error, fmt};
+use std::{error, fmt, io};
 
 /// Base type for generator errors
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum GenError {
     /// Input buffer is too small. Argument is the maximum index that is required
     BufferTooSmall(usize),
     /// Operation asked for accessing an invalid index
     InvalidOffset,
+    /// IoError returned by Write
+    IoError(io::Error),
 
     /// Allocated for custom errors
     CustomError(u32),
@@ -31,7 +33,7 @@ pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [
       let (buf, offset) = x;
       let start = buf.as_mut_ptr();
       let buf_len = buf.len();
-      let len = length(gen)(&mut buf[offset..]).map(|tup| tup.0)?;
+      let len = gen(&mut buf[offset..]).map(|tup| tup.1)?;
       let buf = unsafe { std::slice::from_raw_parts_mut(start, buf_len) };
       Ok((buf, offset + len))
 }
@@ -94,7 +96,7 @@ macro_rules! gen_align(
         {
             let aligned = $val - ($idx % $val);
             match $i.len() <= $idx+aligned {
-                true  => Err(GenError::BufferTooSmall($idx+aligned)),
+                true  => Err(GenError::BufferTooSmall($idx+aligned - $i.len())),
                 false => { Ok(($i,($idx+aligned))) },
             }
         }
@@ -293,7 +295,7 @@ macro_rules! gen_le_f64(
 macro_rules! gen_copy(
     (($i:expr, $idx:expr), $val:expr, $l:expr) => (
         match $i.len() < $idx+$l {
-            true  => Err(GenError::BufferTooSmall($idx+$l)),
+            true  => Err(GenError::BufferTooSmall($idx+$l - $i.len())),
             false => {
                 $i[$idx..$idx+$l].clone_from_slice(&$val[0..$l]);
                 Ok(($i,($idx+$l)))
@@ -549,7 +551,7 @@ macro_rules! gen_at_offset(
                     Err(e)    => Err(e),
                 }
             },
-            true  => Err(GenError::BufferTooSmall($offset)),
+            true  => Err(GenError::BufferTooSmall($offset - $i.len())),
         }
     );
     (($i:expr, $idx:expr), $offset:expr, $submac:ident!( $($args:tt)* )) => (
@@ -560,7 +562,7 @@ macro_rules! gen_at_offset(
                     Err(e)    => Err(e),
                 }
             },
-            true  => Err(GenError::BufferTooSmall($offset)),
+            true  => Err(GenError::BufferTooSmall($offset - $i.len())),
         }
     );
 );
@@ -724,7 +726,7 @@ mod tests {
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
-            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 8),
+            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 5),
             Err(e) => panic!("error {:?}",e),
         }
     }
@@ -735,7 +737,7 @@ mod tests {
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
-            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 8),
+            Err(GenError::BufferTooSmall(sz)) => assert_eq!(sz, 1),
             Err(e) => panic!("error {:?}",e),
         }
     }
@@ -836,8 +838,8 @@ mod tests {
                 panic!("buffer shouldn't have had enough space");
             },
             Err(GenError::BufferTooSmall(sz)) => {
-                if sz != v.len() {
-                    panic!("invalid max index returned, expected {} got {}", v.len(), sz);
+                if sz != 1 {
+                    panic!("invalid max index returned, expected {} got {}", 1, sz);
                 }
             },
             Err(e) => {
@@ -873,8 +875,8 @@ mod tests {
                 panic!("buffer shouldn't have had enough space");
             },
             Err(GenError::BufferTooSmall(sz)) => {
-                if sz != v.len() {
-                    panic!("invalid max index returned, expected {} got {}", v.len(), sz);
+                if sz != 1 {
+                    panic!("invalid max index returned, expected {} got {}", 1, sz);
                 }
             },
             Err(e) => {

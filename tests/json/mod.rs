@@ -15,9 +15,9 @@ pub enum JsonValue {
 #[inline(always)]
 pub fn gen_str<'a, 'b: 'a>(s: &'b str) -> impl SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
-    let out = string("\"")(out)?;
-    let out = string(s)(out)?;
-    string("\"")(out)
+    let (out, len1) = string("\"")(out)?;
+    let (out, len2) = string(s)(out)?;
+    string("\"")(out).map(|(out, len)| (out, len + len1 + len2))
   }
 }
 
@@ -37,26 +37,26 @@ pub fn gen_num<'a>(_b: f64) -> impl SerializeFn<&'a mut [u8]> {
 
 pub fn gen_array<'a, 'b: 'a>(arr: &'b [JsonValue]) -> impl SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
-    let out = string("[")(out)?;
-    let out = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
-    string("]")(out)
+    let (out, len1) = string("[")(out)?;
+    let (out, len2) = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
+    string("]")(out).map(|(out, len)| (out, len + len1 + len2))
   }
 }
 
 pub fn gen_key_value<'a, 'b: 'a>(kv: (&'b String, &'b JsonValue)) -> impl SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
-    let out = gen_str(kv.0)(out)?;
-    let out = string(":")(out)?;
-    gen_json_value(&kv.1)(out)
+    let (out, len1) = gen_str(kv.0)(out)?;
+    let (out, len2) = string(":")(out)?;
+    gen_json_value(&kv.1)(out).map(|(out, len)| (out, len + len1 + len2))
   }
 }
 
 pub fn gen_object<'a, 'b: 'a>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<&'a mut [u8]> {
   move |out: &'a mut [u8]| {
-    let out = string("{")(out)?;
+    let (out, len1) = string("{")(out)?;
 
-    let out = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
-    string("}")(out)
+    let (out, len2) = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
+    string("}")(out).map(|(out, len)| (out, len + len1 + len2))
   }
 }
 
@@ -91,7 +91,7 @@ fn json_test() {
   let pos = {
     let mut sr = gen_json_value(&value);
 
-    let res = sr(&mut buffer).unwrap();
+    let (res, _) = sr(&mut buffer).unwrap();
     res.as_ptr() as usize
   };
 

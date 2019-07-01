@@ -1,6 +1,5 @@
 extern crate cookie_factory;
 
-use cookie_factory::length;
 use std::{str, iter::repeat};
 
 #[path="../tests/http/mod.rs"] mod implementation;
@@ -24,7 +23,7 @@ fn main() {
 
   let size = {
     let sr = fn_request(&request);
-    let (size, _buf) = length(sr)(&mut buffer).unwrap();
+    let (_buf, size) = sr(&mut buffer).unwrap();
     size
   };
 
