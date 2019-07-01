@@ -1,7 +1,7 @@
 extern crate cookie_factory;
 
-use std::io::Write;
-use cookie_factory::{Counter, SerializeFn, pair, string};
+use std::io::{Write, sink};
+use cookie_factory::{SerializeFn, pair, string};
 
 fn serializer<W: Write>() -> impl SerializeFn<W> {
   pair(string("Hello "), string("World!"))
@@ -9,7 +9,7 @@ fn serializer<W: Write>() -> impl SerializeFn<W> {
 
 fn main() {
   let s = {
-    let mut c = Counter(0);
+    let mut c = sink();
     let ser = serializer();
     match ser(&mut c) {
       Err(e) => {
