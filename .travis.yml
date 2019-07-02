@@ -20,6 +20,9 @@ matrix:
         - cargo install cargo-travis   || echo "cargo-travis already installed"
         - cargo install cargo-benchcmp || echo "cargo-benchcmp already installed"
         - cargo install-update -a
+    - rust: nightly
+      script:
+        - eval cargo test --no-default-features
 
 script:
   - eval cargo build --verbose
