@@ -16,7 +16,8 @@ include = [
   "README.md",
   ".gitignore",
   "src/*.rs",
-  "src/combinators/*.rs"
+  "src/combinators/*.rs",
+  "example/*.rs"
 ]
 
 [features]
@@ -34,10 +35,12 @@ codegen-units = 1
 [[example]]
 name = "cursor"
 required-features = ["std"]
+path = "cursor.rs"
 
 [[test]]
 name = "http"
 required-features = ["std"]
+path = "http.rs"
 
 [badges]
 travis-ci = { repository = "Geal/cookie-factory" }
