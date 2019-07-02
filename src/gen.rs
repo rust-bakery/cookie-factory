@@ -2,7 +2,7 @@
 
 use crate::combinators::*;
 
-use std::{error, fmt, io};
+use lib::std::{fmt, io};
 
 /// Base type for generator errors
 #[derive(Debug)]
@@ -26,7 +26,8 @@ impl fmt::Display for GenError {
     }
 }
 
-impl error::Error for GenError {}
+#[cfg(feature = "std")]
+impl std::error::Error for GenError {}
 
 pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError>
   where G: SerializeFn<&'a mut [u8]> {
@@ -34,7 +35,7 @@ pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [
       let start = buf.as_mut_ptr();
       let buf_len = buf.len();
       let len = gen(&mut buf[offset..]).map(|tup| tup.1)?;
-      let buf = unsafe { std::slice::from_raw_parts_mut(start, buf_len) };
+      let buf = unsafe { ::lib::std::slice::from_raw_parts_mut(start, buf_len) };
       Ok((buf, offset + len))
 }
 
@@ -595,7 +596,6 @@ macro_rules! gen_at_rel_offset(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::iter::repeat;
 
     #[test]
     fn test_do_gen() {
@@ -620,7 +620,7 @@ mod tests {
 
     #[test]
     fn test_do_gen_vector() {
-        let mut data = vec![0; 8];
+        let mut data = [0; 8];
         let expected = [1, 2, 3, 4, 5, 6, 7, 8];
         let r = do_gen!(
             (&mut data,0),
@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_gen_be_u64_very_short_buffer() {
-        let mut mem = repeat(0).take(3).collect::<Vec<u8>>();
+        let mut mem = [0; 3];
 
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
@@ -733,7 +733,7 @@ mod tests {
 
     #[test]
     fn test_gen_be_u64_slightly_short_buffer() {
-        let mut mem = repeat(0).take(7).collect::<Vec<u8>>();
+        let mut mem = [0; 7];
         let r = gen_be_u64!((&mut mem,0),0x0102030405060708u64);
         match r {
             Ok((b,idx)) => panic!("should have failed, but wrote {} bytes: {:?}", idx, b),
@@ -796,6 +796,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_gen_many() {
         let mut mem : [u8; 8] = [0; 8];
         let s = &mut mem[..];

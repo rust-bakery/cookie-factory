@@ -1,6 +1,5 @@
 use gen::GenError;
-use std::io::Write;
-use std::fmt;
+use lib::std::io::Write;
 
 pub type GenResult<I> = Result<(I, usize), GenError>;
 
@@ -81,7 +80,8 @@ pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
 }
 
 /// writes an hex string to the output
-pub fn hex<S: fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
+#[cfg(feature = "std")]
+pub fn hex<S: ::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
   move |mut out: W| {
     match write!(out, "{:X}", data) {
       Err(io) => Err(GenError::IoError(io)),
@@ -124,7 +124,7 @@ pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &
     move |out: &'a mut [u8]| {
         let ptr = out.as_mut_ptr();
         let (out, len) = f(out)?;
-        Ok((unsafe { std::slice::from_raw_parts_mut(ptr, len) }, out))
+        Ok((unsafe { ::lib::std::slice::from_raw_parts_mut(ptr, len) }, out))
     }
 }
 
@@ -312,11 +312,11 @@ pub fn be_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
 }
 
 pub fn be_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
-    be_u32(unsafe { std::mem::transmute::<f32, u32>(i) })
+    be_u32(unsafe { ::lib::std::mem::transmute::<f32, u32>(i) })
 }
 
 pub fn be_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
-    be_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
+    be_u64(unsafe { ::lib::std::mem::transmute::<f64, u64>(i) })
 }
 
 pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
@@ -380,11 +380,11 @@ pub fn le_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
 }
 
 pub fn le_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
-    le_u32(unsafe { std::mem::transmute::<f32, u32>(i) })
+    le_u32(unsafe { ::lib::std::mem::transmute::<f32, u32>(i) })
 }
 
 pub fn le_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
-    le_u64(unsafe { std::mem::transmute::<f64, u64>(i) })
+    le_u64(unsafe { ::lib::std::mem::transmute::<f64, u64>(i) })
 }
 
 /// applies a generator over an iterator of values, and applies the serializers generated
@@ -446,12 +446,12 @@ mod test {
 
     #[test]
     fn test_gen_with_length() {
-        let mut buf = vec![0; 8];
+        let mut buf = [0; 8];
         let start = buf.as_mut_ptr();
         let (len_buf, buf) = buf.split_at_mut(4);
         let (buf, len) = string("test")(buf).unwrap();
         be_u32(len as u32)(len_buf).unwrap();
         assert_eq!(buf, &mut []);
-        assert_eq!(unsafe { std::slice::from_raw_parts_mut(start, 8) }, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
+        assert_eq!(unsafe { ::lib::std::slice::from_raw_parts_mut(start, 8) }, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
     }
 }

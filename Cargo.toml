@@ -19,8 +19,9 @@ include = [
   "src/combinators/*.rs"
 ]
 
-[badges]
-travis-ci = { repository = "Geal/cookie-factory" }
+[features]
+default = ["std"]
+std = []
 
 [dev-dependencies]
 maplit = "^1.0"
@@ -29,3 +30,15 @@ maplit = "^1.0"
 debug = true
 lto = true
 codegen-units = 1
+
+[[example]]
+name = "cursor"
+required-features = ["std"]
+
+[[test]]
+name = "http"
+required-features = ["std"]
+
+[badges]
+travis-ci = { repository = "Geal/cookie-factory" }
+maintenance = { status = "actively-developed" }
