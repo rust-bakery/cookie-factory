@@ -1,7 +1,7 @@
 extern crate cookie_factory;
 
 #[path="../tests/http/mod.rs"] mod implementation;
-use implementation::*;
+use crate::implementation::*;
 
 #[cfg(test)]
 mod tests {

@@ -9,6 +9,7 @@ documentation = "http://docs.rs/cookie-factory"
 description = "nom inspired serialization library"
 categories = ["encoding"]
 keywords = ["encoding", "serialization", "nom"]
+edition = "2018"
 
 include = [
   "Cargo.toml",
