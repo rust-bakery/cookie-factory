@@ -327,7 +327,7 @@ pub fn le_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 3;
 
     move |mut out: W| {
-        try_write!(out, len, &i.to_le_bytes()[1..])
+        try_write!(out, len, &i.to_le_bytes()[0..3])
     }
 }
 
