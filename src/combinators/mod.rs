@@ -300,11 +300,11 @@ pub fn be_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
 }
 
 pub fn be_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
-    be_u32(unsafe { ::lib::std::mem::transmute::<f32, u32>(i) })
+    be_u32(i.to_bits())
 }
 
 pub fn be_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
-    be_u64(unsafe { ::lib::std::mem::transmute::<f64, u64>(i) })
+    be_u64(i.to_bits())
 }
 
 pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
@@ -368,11 +368,11 @@ pub fn le_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
 }
 
 pub fn le_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
-    le_u32(unsafe { ::lib::std::mem::transmute::<f32, u32>(i) })
+    le_u32(i.to_bits())
 }
 
 pub fn le_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
-    le_u64(unsafe { ::lib::std::mem::transmute::<f64, u64>(i) })
+    le_u64(i.to_bits())
 }
 
 /// applies a generator over an iterator of values, and applies the serializers generated
