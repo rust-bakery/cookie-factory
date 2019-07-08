@@ -5,7 +5,7 @@ extern crate maplit;
 use std::{str, iter::repeat};
 
 #[path="../tests/json/mod.rs"] mod implementation;
-use implementation::*;
+use crate::implementation::*;
 
 fn main() {
   use cookie_factory::lib::std::io::Cursor;

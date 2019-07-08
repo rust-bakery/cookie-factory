@@ -4,11 +4,10 @@ extern crate cookie_factory;
 
 use std::iter::repeat;
 
-use cookie_factory::*;
 use test::Bencher;
 
 #[path="../tests/http/mod.rs"] mod implementation;
-use implementation::*;
+use crate::implementation::*;
 
 #[cfg(test)]
 mod tests {

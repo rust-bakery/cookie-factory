@@ -48,7 +48,7 @@ pub fn gen_bool<'a>(x:(&'a mut [u8],usize), b:&bool) -> Result<(&'a mut [u8],usi
   gen_slice!(x, sl)
 }
 
-pub fn gen_num<'a>(x:(&'a mut [u8],usize), b:&f64) -> Result<(&'a mut [u8],usize),GenError> {
+pub fn gen_num<'a>(x:(&'a mut [u8],usize), _b:&f64) -> Result<(&'a mut [u8],usize),GenError> {
   //TODO
   gen_slice!(x, &b"1234.56"[..])
 }

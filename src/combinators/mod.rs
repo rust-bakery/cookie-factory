@@ -1,6 +1,5 @@
-use gen::GenError;
-use lib::std::io::Write;
-use lib::std::io;
+use crate::gen::GenError;
+use crate::lib::std::io::{self, Write};
 
 /// Holds the result of serializing functions
 ///
@@ -165,7 +164,7 @@ pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
 ///
 /// assert_eq!(&buf[..2], &b"2A"[..]);
 /// ```
-pub fn hex<S: ::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
+pub fn hex<S: crate::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
   move |mut out: W| {
     match write!(out, "{:X}", data) {
       Err(io) => Err(GenError::IoError(io)),

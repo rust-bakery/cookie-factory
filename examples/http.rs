@@ -1,9 +1,7 @@
 extern crate cookie_factory;
 
-use std::{str, iter::repeat};
-
 #[path="../tests/http/mod.rs"] mod implementation;
-use implementation::*;
+use crate::implementation::*;
 
 fn main() {
   let request = Request {
@@ -24,6 +22,6 @@ fn main() {
   let writer = sr(writer).unwrap();
   let (buffer, size) = writer.into_inner();
 
-  println!("result:\n{}", str::from_utf8(&buffer[..(size as usize)]).unwrap());
+  println!("result:\n{}", std::str::from_utf8(&buffer[..(size as usize)]).unwrap());
 }
 

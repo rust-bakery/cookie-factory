@@ -3,7 +3,7 @@ extern crate cookie_factory;
 extern crate maplit;
 
 #[path="./json/mod.rs"] mod implementation;
-use implementation::*;
+use crate::implementation::*;
 
 #[test]
 fn json_test() {

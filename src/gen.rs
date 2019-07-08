@@ -2,7 +2,7 @@
 
 use crate::combinators::*;
 
-use lib::std::{fmt, io};
+use crate::lib::std::{fmt, io};
 
 /// Base type for generator errors
 #[derive(Debug)]

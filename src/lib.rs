@@ -86,9 +86,9 @@ pub mod lib {
   }
 }
 
-pub use gen::*;
+pub use crate::gen::*;
 #[macro_use] mod gen;
 
 mod combinators;
-pub use combinators::*;
+pub use crate::combinators::*;
 
