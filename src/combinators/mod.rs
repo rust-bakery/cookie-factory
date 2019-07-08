@@ -1,35 +1,52 @@
 use gen::GenError;
 use lib::std::io::Write;
+use lib::std::io;
 
-pub type GenResult<I> = Result<(I, usize), GenError>;
+pub type GenResult<I> = Result<I, GenError>;
 
 pub trait SerializeFn<I>: Fn(I) -> GenResult<I> {}
 
 impl<I, F: Fn(I) -> GenResult<I>> SerializeFn<I> for F {}
 
-pub trait GenChain<I, S: SerializeFn<I>> {
-    fn chain(self, s: &S) -> GenResult<I>;
+pub trait Skip: Write {
+    fn skip(self, s: usize) -> Result<Self, GenError> where Self: Sized;
 }
 
-impl<I, S: SerializeFn<I>> GenChain<I, S> for GenResult<I> {
-    fn chain(self, s: &S) -> GenResult<I> {
-        self.and_then(|(buf, len)| s(buf).map(|(buf, len2)| (buf, len + len2)))
+pub struct WriteCounter<W>(W, u64);
+
+impl<W: Write> WriteCounter<W> {
+    pub fn new(w: W) -> Self {
+        WriteCounter(w, 0)
+    }
+
+    pub fn position(&self) -> u64 {
+        self.1
+    }
+
+    pub fn into_inner(self) -> (W, u64) {
+        (self.0, self.1)
     }
 }
 
-pub trait Length {
-    fn length(&self) -> usize;
-}
+impl<W: Write> Write for WriteCounter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let written = self.0.write(buf)?;
+        self.1 += written as u64;
+        Ok(written)
+    }
 
-pub trait Skip {
-    fn skip(self, s: usize) -> Result<Self, GenError> where Self: Sized;
+    // Our minimal Write trait has no flush()
+    #[cfg(feature = "std")]
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
 }
 
 macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
     match $out.write($data) {
         Err(io)           => Err(GenError::IoError(io)),
         Ok(n) if n < $len => Err(GenError::BufferTooSmall($len - n)),
-        Ok(n)             => Ok(($out, n))
+        Ok(_)             => Ok($out)
     }
 ));
 
@@ -40,12 +57,11 @@ macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let len = {
-///   let (_, len) = slice(&b"abcd"[..])(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = slice(&b"abcd"[..])(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
 ///
-/// assert_eq!(len, 4usize);
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
 pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
@@ -63,12 +79,11 @@ pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let len = {
-///   let (_, len) = string("abcd")(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = string("abcd")(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
 ///
-/// assert_eq!(len, 4usize);
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
 pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
@@ -85,7 +100,7 @@ pub fn hex<S: ::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<
   move |mut out: W| {
     match write!(out, "{:X}", data) {
       Err(io) => Err(GenError::IoError(io)),
-      Ok(())  => Ok((out, 0 /* FIXME */))
+      Ok(())  => Ok(out)
     }
   }
 }
@@ -97,34 +112,13 @@ pub fn hex<S: ::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let (out, _) = skip(2)(&mut buf[..]).unwrap();
+/// let out = skip(2)(&mut buf[..]).unwrap();
 ///
 /// assert_eq!(out.len(), 98);
 /// ```
-pub fn skip<W: Skip>(len: usize) -> impl SerializeFn<W> {
+pub fn skip<W: Write + Skip>(len: usize) -> impl SerializeFn<W> {
     move |out: W| {
-        out.skip(len).map(|out| (out, len))
-    }
-}
-
-/// applies a serializer then returns a tuple containing what was written and the remaining output buffer
-///
-/// ```rust
-/// use cookie_factory::{position, string};
-///
-/// let mut buf = [0u8; 100];
-///
-/// let (written, remaining) = position(string("abcd"))(&mut buf[..]).unwrap();
-///
-/// assert_eq!(remaining.len(), 96);
-/// assert_eq!(written, &b"abcd"[..]);
-/// ```
-pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &'a mut [u8]), GenError>
-  where F: SerializeFn<&'a mut [u8]> {
-    move |out: &'a mut [u8]| {
-        let ptr = out.as_mut_ptr();
-        let (out, len) = f(out)?;
-        Ok((unsafe { ::lib::std::slice::from_raw_parts_mut(ptr, len) }, out))
+        out.skip(len)
     }
 }
 
@@ -135,20 +129,19 @@ pub fn position<'a, F>(f: F) -> impl Fn(&'a mut [u8]) -> Result<(&'a mut [u8], &
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let len = {
-///   let (_, len) = pair(string("abcd"), string("efgh"))(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = pair(string("abcd"), string("efgh"))(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
 ///
-/// assert_eq!(len, 8usize);
 /// assert_eq!(&buf[..8], &b"abcdefgh"[..]);
 /// ```
-pub fn pair<F, G, I>(first: F, second: G) -> impl SerializeFn<I>
+pub fn pair<F, G, I: Write>(first: F, second: G) -> impl SerializeFn<I>
 where F: SerializeFn<I>,
       G: SerializeFn<I> {
 
   move |out: I| {
-    first(out).chain(&second)
+    first(out).and_then(&second)
   }
 }
 
@@ -159,22 +152,21 @@ where F: SerializeFn<I>,
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let len = {
-///   let (_, len) = cond(true, string("abcd"))(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = cond(true, string("abcd"))(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
 ///
-/// assert_eq!(len, 4usize);
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
-pub fn cond<F, I>(condition: bool, f: F) -> impl SerializeFn<I>
+pub fn cond<F, I: Write>(condition: bool, f: F) -> impl SerializeFn<I>
 where F: SerializeFn<I>, {
 
   move |out: I| {
     if condition {
       f(out)
     } else {
-      Ok((out, 0))
+      Ok(out)
     }
   }
 }
@@ -187,27 +179,25 @@ where F: SerializeFn<I>, {
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
-/// let len = {
-///   let (_, len) = all(data.iter().map(string))(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = all(data.iter().map(string))(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 12);
+/// }
 ///
-/// assert_eq!(len, 12usize);
 /// assert_eq!(&buf[..12], &b"abcdefghijkl"[..]);
 /// ```
-pub fn all<G, I, It>(values: It) -> impl SerializeFn<I>
+pub fn all<G, I: Write, It>(values: It) -> impl SerializeFn<I>
   where G: SerializeFn<I>,
         It: Clone + Iterator<Item=G> {
 
-  move |out: I| {
+  move |mut out: I| {
     let it = values.clone();
-    let mut res = Ok((out, 0));
 
     for v in it {
-      res = Ok(res.chain(&v)?);
+      out = v(out)?;
     }
 
-    res
+    Ok(out)
   }
 }
 
@@ -219,35 +209,33 @@ pub fn all<G, I, It>(values: It) -> impl SerializeFn<I>
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
-/// let len = {
-///   let (_, len) = separated_list(string(","), data.iter().map(string))(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = separated_list(string(","), data.iter().map(string))(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 14);
+/// }
 ///
-/// assert_eq!(len, 14usize);
 /// assert_eq!(&buf[..14], &b"abcd,efgh,ijkl"[..]);
 /// ```
-pub fn separated_list<F, G, I, It>(sep: F, values: It) -> impl SerializeFn<I>
+pub fn separated_list<F, G, I: Write, It>(sep: F, values: It) -> impl SerializeFn<I>
   where F: SerializeFn<I>,
         G: SerializeFn<I>,
         It: Clone + Iterator<Item=G> {
 
-  move |out: I| {
+  move |mut out: I| {
     let mut it = values.clone();
-    let mut res = Ok((out, 0));
 
     match it.next() {
-      None => return res,
+      None => return Ok(out),
       Some(first) => {
-        res = Ok(res.chain(&first)?);
+          out = first(out)?;
       }
     }
 
     for v in it {
-      res = Ok(res.chain(&sep).chain(&v)?);
+      out = sep(out).and_then(v)?;
     }
 
-    res
+    Ok(out)
   }
 }
 
@@ -395,15 +383,14 @@ pub fn le_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
-/// let len = {
-///   let (_, len) = many_ref(&data, string)(&mut buf[..]).unwrap();
-///   len
-/// };
+/// {
+///   let buf = many_ref(&data, string)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 12);
+/// }
 ///
-/// assert_eq!(len, 12usize);
 /// assert_eq!(&buf[..12], &b"abcdefghijkl"[..]);
 /// ```
-pub fn many_ref<E, It, I, F, G, O>(items: I, generator: F) -> impl SerializeFn<O>
+pub fn many_ref<E, It, I, F, G, O: Write>(items: I, generator: F) -> impl SerializeFn<O>
 where
     It: Iterator<Item = E> + Clone,
     I: IntoIterator<Item = E, IntoIter = It>,
@@ -411,12 +398,11 @@ where
     G: SerializeFn<O>
 {
     let items = items.into_iter();
-    move |out: O| {
-        let mut res = Ok((out, 0));
+    move |mut out: O| {
         for item in items.clone() {
-            res = Ok(res.chain(&generator(item))?);
+            out = generator(item)(out)?;
         }
-        res
+        Ok(out)
     }
 }
 
@@ -444,14 +430,36 @@ impl Skip for &mut [u8] {
 mod test {
     use super::*;
 
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_pair() {
+        let mut buf = [0u8; 8];
+
+        {
+            use std::io::Cursor;
+
+            let mut cursor = Cursor::new(&mut buf[..]);
+            let serializer = pair(
+                string("1234"),
+                string("5678"),
+            );
+
+            let cursor = serializer(&mut cursor).unwrap();
+            assert_eq!(cursor.position(), 8);
+        }
+
+        assert_eq!(&buf[..], b"12345678");
+    }
+
     #[test]
     fn test_gen_with_length() {
         let mut buf = [0; 8];
-        let start = buf.as_mut_ptr();
-        let (len_buf, buf) = buf.split_at_mut(4);
-        let (buf, len) = string("test")(buf).unwrap();
-        be_u32(len as u32)(len_buf).unwrap();
-        assert_eq!(buf, &mut []);
-        assert_eq!(unsafe { ::lib::std::slice::from_raw_parts_mut(start, 8) }, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
+        {
+            let (len_buf, buf) = buf.split_at_mut(4);
+            let w = WriteCounter::new(buf);
+            let w = string("test")(w).unwrap();
+            be_u32(w.position() as u32)(len_buf).unwrap();
+        }
+        assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
     }
 }
