@@ -1,4 +1,5 @@
 use std::str;
+use std::io::Write;
 
 use cookie_factory::*;
 
@@ -50,47 +51,47 @@ pub struct RequestHeaders<'a> {
   pub headers: Vec<Header<'a>>,
 }
 
-pub fn fn_request<'a:'c, 'b: 'a, 'c>(r: &'b Request<'a>) -> impl SerializeFn<&'c mut[u8]> {
-  move |out: &'c mut [u8]| {
-    let (out, len1) = fn_request_line(&r.method, &r.uri)(out)?;
-    let (out, len2) = all(r.headers.iter().map(fn_header))(out)?;
-    let (out, len3) = string("\r\n")(out)?;
-    slice(r.body)(out).map(|(out, len)| (out, len + len1 + len2 + len3))
+pub fn fn_request<'a:'c, 'b: 'a, 'c, W: Write>(r: &'b Request<'a>) -> impl SerializeFn<W> + 'c {
+  move |out: W| {
+    let out = fn_request_line(&r.method, &r.uri)(out)?;
+    let out = all(r.headers.iter().map(fn_header))(out)?;
+    let out = string("\r\n")(out)?;
+    slice(r.body)(out)
   }
 }
 
-pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>>(method: &'a S, uri: &'a S) -> impl SerializeFn<&'c mut[u8]> {
-  move |out: &'c mut [u8]| {
-    let (out, len1) = string(method)(out)?;
-    let (out, len2) = string(" ")(out)?;
-    let (out, len3) = string(uri)(out)?;
-    string(" HTTP/1.1\r\n")(out).map(|(out, len)| (out, len + len1 + len2 + len3))
+pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>, W: Write>(method: &'a S, uri: &'a S) -> impl SerializeFn<W> + 'c {
+  move |out: W| {
+    let out = string(method)(out)?;
+    let out = string(" ")(out)?;
+    let out = string(uri)(out)?;
+    string(" HTTP/1.1\r\n")(out)
   }
 }
 
-pub fn fn_header<'a:'c, 'c>(h: &'a Header) -> impl SerializeFn<&'c mut[u8]> {
-  move |out: &'c mut [u8]| {
-    let (out, len1) = string(h.name)(out)?;
-    let (out, len2) = string(": ")(out)?;
-    let (out, len3) = string(h.value)(out)?;
-    string("\r\n")(out).map(|(out, len)| (out, len + len1 + len2 + len3))
+pub fn fn_header<'a:'c, 'c, W: Write>(h: &'a Header) -> impl SerializeFn<W> + 'c {
+  move |out: W| {
+    let out = string(h.name)(out)?;
+    let out = string(": ")(out)?;
+    let out = string(h.value)(out)?;
+    string("\r\n")(out)
   }
 }
 
-pub fn fn_request_headers<'a:'c, 'c, 'b: 'a>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<&'c mut[u8]> {
-  move |out: &'c mut [u8]| {
-    let (out, len1) = fn_request_line(&r.method, &r.uri)(out)?;
-    let (out, len2) = all(r.headers.iter().map(fn_header))(out)?;
-    string("\r\n")(out).map(|(out, len)| (out, len + len1 + len2))
+pub fn fn_request_headers<'a:'c, 'c, 'b: 'a, W: Write>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<W> + 'c {
+  move |out: W| {
+    let out = fn_request_line(&r.method, &r.uri)(out)?;
+    let out = all(r.headers.iter().map(fn_header))(out)?;
+    string("\r\n")(out)
   }
 }
 
-pub fn fn_chunk<'a:'c,'c>(sl: &'a[u8]) -> impl SerializeFn<&'c mut[u8]> {
-  move |out: &'c mut [u8]| {
-    let (out, len1) = hex(sl.len())(out)?;
-    let (out, len2) = string("\r\n")(out)?;
-    let (out, len3) = slice(sl)(out)?;
-    string("\r\n")(out).map(|(out, len)| (out, len + len1 + len2 + len3))
+pub fn fn_chunk<'a:'c,'c, W: Write>(sl: &'a[u8]) -> impl SerializeFn<W> + 'c {
+  move |out: W| {
+    let out = hex(sl.len())(out)?;
+    let out = string("\r\n")(out)?;
+    let out = slice(sl)(out)?;
+    string("\r\n")(out)
   }
 }
 

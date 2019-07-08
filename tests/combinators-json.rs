@@ -8,7 +8,8 @@ use implementation::*;
 #[test]
 fn json_test() {
   use std::str;
-  use std::iter::repeat;
+  use cookie_factory::lib::std::io::Cursor;
+
   let value = JsonValue::Object(btreemap!{
     String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
     String::from("b") => JsonValue::Boolean(true),
@@ -21,17 +22,15 @@ fn json_test() {
 
   //let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
 
-  let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-  let ptr = {
-    let mut sr = gen_json_value(&value);
-    let (_res, _) = sr(&mut buffer).unwrap();
-    _res.as_ptr() as usize
-  };
+  let mut buffer = [0u8; 8192];
+  let sr = gen_json_value(&value);
+  let writer = Cursor::new(&mut buffer[..]);
+  let writer = sr(writer).unwrap();
+  let size = writer.position() as usize;
+  let buffer = writer.into_inner();
 
-  let index = ptr - (&buffer[..]).as_ptr() as usize;
-
-  println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
-  assert_eq!(str::from_utf8(&buffer[..index]).unwrap(),
+  println!("result:\n{}", str::from_utf8(&buffer[..size]).unwrap());
+  assert_eq!(str::from_utf8(&buffer[..size]).unwrap(),
     "{\"arr\":[1234.56,1234.56,1234.56],\"b\":true,\"o\":{\"empty\":[],\"x\":\"abcd\",\"y\":\"efgh\"}}");
 }
 
