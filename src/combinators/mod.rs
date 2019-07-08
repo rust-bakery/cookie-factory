@@ -2,27 +2,84 @@ use gen::GenError;
 use lib::std::io::Write;
 use lib::std::io;
 
+/// Holds the result of serializing functions
+///
+/// The `Ok` case returns the `Write` used for writing, in the `Err` case an instance of
+/// `cookie_factory::GenError` is returned.
 pub type GenResult<I> = Result<I, GenError>;
 
+/// Trait for serializing functions
+///
+/// Serializing functions take one input `I` that is the target of writing and return an instance
+/// of `cookie_factory::GenResult`.
+///
+/// This trait is implemented for all `Fn(I) -> GenResult<I>`.
 pub trait SerializeFn<I>: Fn(I) -> GenResult<I> {}
 
 impl<I, F: Fn(I) -> GenResult<I>> SerializeFn<I> for F {}
 
+/// Trait for `Write` types that allow skipping over the data
 pub trait Skip: Write {
     fn skip(self, s: usize) -> Result<Self, GenError> where Self: Sized;
 }
 
+/// Wrapper around `Write` that counts how much data was written
+///
+/// This can be used to keep track how much data was actually written by serializing functions, for
+/// example
+///
+/// ```rust
+/// use cookie_factory::{WriteCounter, string};
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///     let mut writer = WriteCounter::new(&mut buf[..]);
+///     writer = string("abcd")(writer).unwrap();
+///     assert_eq!(writer.position(), 4);
+///     let (buf, len) = writer.into_inner();
+///     assert_eq!(buf.len(), 96);
+///     assert_eq!(len, 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
+///
+/// For byte slices `std::io::Cursor` provides more features and allows to retrieve the original
+/// slice
+///
+/// ```rust
+/// #[cfg(feature = "std")]
+/// use std::io::Cursor;
+/// #[cfg(not(feature = "std"))]
+/// use cookie_factory::lib::std::io::{Cursor, Write};
+///
+/// use cookie_factory::string;
+///
+/// let mut buf = [0u8; 100];
+///
+/// let mut cursor = Cursor::new(&mut buf[..]);
+/// cursor = string("abcd")(cursor).unwrap();
+/// assert_eq!(cursor.position(), 4);
+/// let buf = cursor.into_inner();
+///
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
 pub struct WriteCounter<W>(W, u64);
 
 impl<W: Write> WriteCounter<W> {
+    /// Create a new `WriteCounter` around `w`
     pub fn new(w: W) -> Self {
         WriteCounter(w, 0)
     }
 
+    /// Returns the amount of bytes written so far
     pub fn position(&self) -> u64 {
         self.1
     }
 
+    /// Consumes the `WriteCounter` and returns the contained `Write` and the amount of bytes
+    /// written
     pub fn into_inner(self) -> (W, u64) {
         (self.0, self.1)
     }
@@ -50,7 +107,7 @@ macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
     }
 ));
 
-/// writes a byte slice to the output
+/// Writes a byte slice to the output
 ///
 /// ```rust
 /// use cookie_factory::slice;
@@ -72,7 +129,7 @@ pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
     }
 }
 
-/// writes a byte slice to the output
+/// Writes a string slice to the output
 ///
 /// ```rust
 /// use cookie_factory::string;
@@ -94,8 +151,20 @@ pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
     }
 }
 
-/// writes an hex string to the output
+/// Writes an hex string to the output
 #[cfg(feature = "std")]
+/// ```rust
+/// use cookie_factory::hex;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = hex(0x2A)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 2);
+/// }
+///
+/// assert_eq!(&buf[..2], &b"2A"[..]);
+/// ```
 pub fn hex<S: ::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
   move |mut out: W| {
     match write!(out, "{:X}", data) {
@@ -105,7 +174,7 @@ pub fn hex<S: ::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<
   }
 }
 
-/// skips over some input bytes
+/// Skips over some input bytes without writing anything
 ///
 /// ```rust
 /// use cookie_factory::skip;
@@ -122,7 +191,7 @@ pub fn skip<W: Write + Skip>(len: usize) -> impl SerializeFn<W> {
     }
 }
 
-/// applies 2 serializers in sequence
+/// Applies 2 serializers in sequence
 ///
 /// ```rust
 /// use cookie_factory::{pair, string};
@@ -145,7 +214,7 @@ where F: SerializeFn<I>,
   }
 }
 
-/// applies a serializer if the condition is true
+/// Applies a serializer if the condition is true
 ///
 /// ```rust
 /// use cookie_factory::{cond, string};
@@ -171,7 +240,7 @@ where F: SerializeFn<I>, {
   }
 }
 
-/// applies an iterator of serializers
+/// Applies an iterator of serializers of the same type
 ///
 /// ```rust
 /// use cookie_factory::{all, string};
@@ -201,7 +270,7 @@ pub fn all<G, I: Write, It>(values: It) -> impl SerializeFn<I>
   }
 }
 
-/// applies an iterator of serializers
+/// Applies an iterator of serializers of the same type with a separator between each serializer
 ///
 /// ```rust
 /// use cookie_factory::{separated_list, string};
@@ -239,6 +308,20 @@ pub fn separated_list<F, G, I: Write, It>(sep: F, values: It) -> impl SerializeF
   }
 }
 
+/// Writes an `u8` to the output
+///
+/// ```rust
+/// use cookie_factory::be_u8;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_u8(1u8)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 1);
+/// }
+///
+/// assert_eq!(&buf[..1], &[1u8][..]);
+/// ```
 pub fn be_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
    let len = 1;
 
@@ -247,6 +330,20 @@ pub fn be_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `u16` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_u16;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_u16(1u16)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 2);
+/// }
+///
+/// assert_eq!(&buf[..2], &[0u8, 1u8][..]);
+/// ```
 pub fn be_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
    let len = 2;
 
@@ -255,6 +352,20 @@ pub fn be_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes the lower 24 bit of an `u32` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_u24;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_u24(1u32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 3);
+/// }
+///
+/// assert_eq!(&buf[..3], &[0u8, 0u8, 1u8][..]);
+/// ```
 pub fn be_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 3;
 
@@ -263,6 +374,20 @@ pub fn be_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `u32` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_u32;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_u32(1u32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &[0u8, 0u8, 0u8, 1u8][..]);
+/// ```
 pub fn be_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 4;
 
@@ -271,6 +396,20 @@ pub fn be_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `u64` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_u64;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_u64(1u64)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
+///
+/// assert_eq!(&buf[..8], &[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8][..]);
+/// ```
 pub fn be_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
    let len = 8;
 
@@ -279,34 +418,146 @@ pub fn be_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `i8` to the output
+///
+/// ```rust
+/// use cookie_factory::be_i8;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_i8(1i8)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 1);
+/// }
+///
+/// assert_eq!(&buf[..1], &[1u8][..]);
+/// ```
 pub fn be_i8<W: Write>(i: i8) -> impl SerializeFn<W> {
     be_u8(i as u8)
 }
 
+/// Writes an `i16` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_i16;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_i16(1i16)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 2);
+/// }
+///
+/// assert_eq!(&buf[..2], &[0u8, 1u8][..]);
+/// ```
 pub fn be_i16<W: Write>(i: i16) -> impl SerializeFn<W> {
     be_u16(i as u16)
 }
 
+/// Writes the lower 24 bit of an `i32` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_i24;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_i24(1i32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 3);
+/// }
+///
+/// assert_eq!(&buf[..3], &[0u8, 0u8, 1u8][..]);
+/// ```
 pub fn be_i24<W: Write>(i: i32) -> impl SerializeFn<W> {
     be_u24(i as u32)
 }
 
+/// Writes an `i32` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_i32;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_i32(1i32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &[0u8, 0u8, 0u8, 1u8][..]);
+/// ```
 pub fn be_i32<W: Write>(i: i32) -> impl SerializeFn<W> {
     be_u32(i as u32)
 }
 
+/// Writes an `i64` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_i64;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_i64(1i64)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
+///
+/// assert_eq!(&buf[..8], &[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8][..]);
+/// ```
 pub fn be_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
     be_u64(i as u64)
 }
 
+/// Writes an `f32` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_f32;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_f32(1.0f32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &[63u8, 128u8, 0u8, 0u8][..]);
+/// ```
 pub fn be_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
     be_u32(i.to_bits())
 }
 
+/// Writes an `f64` in big endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::be_f64;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = be_f64(1.0f64)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
+///
+/// assert_eq!(&buf[..8], &[63u8, 240u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8][..]);
+/// ```
 pub fn be_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
     be_u64(i.to_bits())
 }
 
+/// Writes an `u8` to the output
+///
+/// ```rust
+/// use cookie_factory::le_u8;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_u8(1u8)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 1);
+/// }
+///
+/// assert_eq!(&buf[..1], &[1u8][..]);
+/// ```
 pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
    let len = 1;
 
@@ -315,6 +566,20 @@ pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `u16` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_u16;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_u16(1u16)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 2);
+/// }
+///
+/// assert_eq!(&buf[..2], &[1u8, 0u8][..]);
+/// ```
 pub fn le_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
    let len = 2;
 
@@ -323,6 +588,20 @@ pub fn le_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes the lower 24 bit of an `u32` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_u24;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_u24(1u32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 3);
+/// }
+///
+/// assert_eq!(&buf[..3], &[1u8, 0u8, 0u8][..]);
+/// ```
 pub fn le_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 3;
 
@@ -331,6 +610,20 @@ pub fn le_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `u32` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_u32;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_u32(1u32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &[1u8, 0u8, 0u8, 0u8][..]);
+/// ```
 pub fn le_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 4;
 
@@ -339,6 +632,20 @@ pub fn le_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `u64` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_u64;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_u64(1u64)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
+///
+/// assert_eq!(&buf[..8], &[1u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8][..]);
+/// ```
 pub fn le_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
    let len = 8;
 
@@ -347,35 +654,133 @@ pub fn le_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
     }
 }
 
+/// Writes an `i8` to the output
+///
+/// ```rust
+/// use cookie_factory::le_i8;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_i8(1i8)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 1);
+/// }
+///
+/// assert_eq!(&buf[..1], &[1u8][..]);
+/// ```
 pub fn le_i8<W: Write>(i: i8) -> impl SerializeFn<W> {
     le_u8(i as u8)
 }
 
+/// Writes an `o16` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_i16;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_i16(1i16)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 2);
+/// }
+///
+/// assert_eq!(&buf[..2], &[1u8, 0u8][..]);
+/// ```
 pub fn le_i16<W: Write>(i: i16) -> impl SerializeFn<W> {
     le_u16(i as u16)
 }
 
+/// Writes the lower 24 bit of an `i32` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_i24;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_i24(1i32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 3);
+/// }
+///
+/// assert_eq!(&buf[..3], &[1u8, 0u8, 0u8][..]);
+/// ```
 pub fn le_i24<W: Write>(i: i32) -> impl SerializeFn<W> {
     le_u24(i as u32)
 }
 
+/// Writes an `i32` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_i32;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_i32(1i32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &[1u8, 0u8, 0u8, 0u8][..]);
+/// ```
 pub fn le_i32<W: Write>(i: i32) -> impl SerializeFn<W> {
     le_u32(i as u32)
 }
 
+/// Writes an `i64` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_i64;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_i64(1i64)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
+///
+/// assert_eq!(&buf[..8], &[1u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8][..]);
+/// ```
 pub fn le_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
     le_u64(i as u64)
 }
 
+/// Writes an `f32` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_f32;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_f32(1.0f32)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &[0u8, 0u8, 128u8, 63u8][..]);
+/// ```
 pub fn le_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
     le_u32(i.to_bits())
 }
 
+/// Writes an `f64` in little endian byte order to the output
+///
+/// ```rust
+/// use cookie_factory::le_f64;
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = le_f64(1.0f64)(&mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 8);
+/// }
+///
+/// assert_eq!(&buf[..8], &[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 240u8, 63u8][..]);
+/// ```
 pub fn le_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
     le_u64(i.to_bits())
 }
 
-/// applies a generator over an iterator of values, and applies the serializers generated
+/// Applies a generator over an iterator of values, and applies the serializers generated
 ///
 /// ```rust
 /// use cookie_factory::{many_ref, string};
