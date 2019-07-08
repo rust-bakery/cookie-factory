@@ -14,12 +14,12 @@ pub enum JsonValue {
 }
 
 #[inline(always)]
-pub fn gen_str<'a, 'b: 'a, W: Write>(s: &'b str) -> impl SerializeFn<W> + 'a {
-  move |out: W| {
-    let out = string("\"")(out)?;
-    let out = string(s)(out)?;
-    string("\"")(out)
-  }
+pub fn gen_str<'a, 'b: 'a, W: Write + 'a>(s: &'b str) -> impl SerializeFn<W> + 'a {
+   tuple((
+     string("\""),
+     string(s),
+     string("\""),
+   ))
 }
 
 #[inline(always)]
@@ -36,31 +36,29 @@ pub fn gen_num<W: Write>(_b: f64) -> impl SerializeFn<W> {
   string("1234.56")
 }
 
-pub fn gen_array<'a, 'b: 'a, W: Write>(arr: &'b [JsonValue]) -> impl SerializeFn<W> + 'a {
-  move |out: W| {
-    let out = string("[")(out)?;
-    let out = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
-    string("]")(out)
-  }
+pub fn gen_array<'a, 'b: 'a, W: Write + 'a>(arr: &'b [JsonValue]) -> impl SerializeFn<W> + 'a {
+  tuple((
+    string("["),
+    separated_list(string(","), arr.iter().map(gen_json_value)),
+    string("]")
+  ))
 }
 
-pub fn gen_key_value<'a, 'b: 'a, W: Write>(kv: (&'b String, &'b JsonValue)) -> impl SerializeFn<W> + 'a {
-  move |out: W| {
-    let out = gen_str(kv.0)(out)?;
-    let out = string(":")(out)?;
-    gen_json_value(&kv.1)(out)
-  }
+pub fn gen_key_value<'a, 'b: 'a, W: Write + 'a>(kv: (&'b String, &'b JsonValue)) -> impl SerializeFn<W> + 'a {
+  tuple((
+    gen_str(kv.0),
+    string(":"),
+    gen_json_value(&kv.1),
+  ))
 }
 
-pub fn gen_object<'a, 'b: 'a, W: Write>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<W> + 'a {
-  move |out: W| {
-    let out = string("{")(out)?;
-
-    let out = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
-    string("}")(out)
-  }
+pub fn gen_object<'a, 'b: 'a, W: Write + 'a>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<W> + 'a {
+  tuple((
+    string("{"),
+    separated_list(string(","), o.iter().map(gen_key_value)),
+    string("}"),
+  ))
 }
-
 
 pub fn gen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + 'a {
   move |out: W| {
