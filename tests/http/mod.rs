@@ -51,48 +51,48 @@ pub struct RequestHeaders<'a> {
   pub headers: Vec<Header<'a>>,
 }
 
-pub fn fn_request<'a:'c, 'b: 'a, 'c, W: Write>(r: &'b Request<'a>) -> impl SerializeFn<W> + 'c {
-  move |out: W| {
-    let out = fn_request_line(&r.method, &r.uri)(out)?;
-    let out = all(r.headers.iter().map(fn_header))(out)?;
-    let out = string("\r\n")(out)?;
-    slice(r.body)(out)
-  }
+pub fn fn_request<'a:'c, 'b: 'a, 'c, W: Write + 'c>(r: &'b Request<'a>) -> impl SerializeFn<W> + 'c {
+  tuple((
+    fn_request_line(&r.method, &r.uri),
+    all(r.headers.iter().map(fn_header)),
+    string("\r\n"),
+    slice(r.body),
+  ))
 }
 
-pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>, W: Write>(method: &'a S, uri: &'a S) -> impl SerializeFn<W> + 'c {
-  move |out: W| {
-    let out = string(method)(out)?;
-    let out = string(" ")(out)?;
-    let out = string(uri)(out)?;
-    string(" HTTP/1.1\r\n")(out)
-  }
+pub fn fn_request_line<'a:'c, 'c, S: AsRef<str>, W: Write + 'c>(method: &'a S, uri: &'a S) -> impl SerializeFn<W> + 'c {
+  tuple((
+    string(method),
+    string(" "),
+    string(uri),
+    string(" HTTP/1.1\r\n"),
+  ))
 }
 
-pub fn fn_header<'a:'c, 'c, W: Write>(h: &'a Header) -> impl SerializeFn<W> + 'c {
-  move |out: W| {
-    let out = string(h.name)(out)?;
-    let out = string(": ")(out)?;
-    let out = string(h.value)(out)?;
-    string("\r\n")(out)
-  }
+pub fn fn_header<'a:'c, 'c, W: Write + 'c>(h: &'a Header) -> impl SerializeFn<W> + 'c {
+  tuple((
+    string(h.name),
+    string(": "),
+    string(h.value),
+    string("\r\n"),
+  ))
 }
 
-pub fn fn_request_headers<'a:'c, 'c, 'b: 'a, W: Write>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<W> + 'c {
-  move |out: W| {
-    let out = fn_request_line(&r.method, &r.uri)(out)?;
-    let out = all(r.headers.iter().map(fn_header))(out)?;
-    string("\r\n")(out)
-  }
+pub fn fn_request_headers<'a:'c, 'c, 'b: 'a, W: Write + 'c>(r: &'b RequestHeaders<'a>) -> impl SerializeFn<W> + 'c {
+  tuple((
+    fn_request_line(&r.method, &r.uri),
+    all(r.headers.iter().map(fn_header)),
+    string("\r\n"),
+  ))
 }
 
-pub fn fn_chunk<'a:'c,'c, W: Write>(sl: &'a[u8]) -> impl SerializeFn<W> + 'c {
-  move |out: W| {
-    let out = hex(sl.len())(out)?;
-    let out = string("\r\n")(out)?;
-    let out = slice(sl)(out)?;
-    string("\r\n")(out)
-  }
+pub fn fn_chunk<'a:'c,'c, W: Write + 'c>(sl: &'a[u8]) -> impl SerializeFn<W> + 'c {
+  tuple((
+    hex(sl.len()),
+    string("\r\n"),
+    slice(sl),
+    string("\r\n"),
+  ))
 }
 
 /*
