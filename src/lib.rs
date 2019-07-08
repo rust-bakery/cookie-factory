@@ -14,7 +14,7 @@ pub mod lib {
   #[cfg(feature = "std")]
   pub mod std {
     pub mod io {
-      pub use std::io::{Write, Result, Error};
+      pub use std::io::{Write, Result, Error, Cursor};
     }
     pub use std::{cmp, fmt, iter, mem, result, slice};
   }
@@ -44,6 +44,44 @@ pub mod lib {
         }
       }
 
+      // Minimal re-implementation of std::io::Cursor so it
+      // also works in non-std environments
+      pub struct Cursor<T>(T, usize);
+
+      impl<'a> Cursor<&'a mut [u8]> {
+        pub fn new(inner: &'a mut [u8]) -> Self {
+            Self(inner, 0)
+        }
+
+        pub fn into_inner(self) -> &'a mut [u8] {
+            self.0
+        }
+
+        pub fn position(&self) -> u64 {
+            self.1 as u64
+        }
+
+        pub fn set_position(&mut self, pos: u64) {
+            self.1 = pos as usize;
+        }
+
+        pub fn get_mut(&mut self) -> &mut [u8] {
+            self.0
+        }
+
+        pub fn get_ref(&self) -> &[u8] {
+            self.0
+        }
+      }
+
+      impl<'a> Write for Cursor<&'a mut [u8]> {
+        fn write(&mut self, data: &[u8]) -> Result<usize> {
+          let amt = (&mut self.0[self.1..]).write(data)?;
+          self.1 += amt as usize;
+
+          Ok(amt)
+        }
+      }
     }
   }
 }

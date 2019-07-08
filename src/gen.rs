@@ -30,14 +30,16 @@ impl fmt::Display for GenError {
 impl std::error::Error for GenError {}
 
 pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError>
-  where G: SerializeFn<&'a mut [u8]> {
+  where G: SerializeFn<io::Cursor<&'a mut [u8]>> {
       let (buf, offset) = x;
-      let start = buf.as_mut_ptr();
-      let buf_len = buf.len();
-      let end = gen(&mut buf[offset..])?;
-      let len = buf_len - offset - end.len();
-      let buf = unsafe { ::lib::std::slice::from_raw_parts_mut(start, buf_len) };
-      Ok((buf, offset + len))
+      let (buf, offset) = {
+          let mut cursor = io::Cursor::new(buf);
+          cursor.set_position(offset as u64);
+          let cursor = gen(cursor)?;
+          let position = cursor.position();
+          (cursor.into_inner(), position)
+      };
+      Ok((buf, offset as usize))
 }
 
 /// Write an unsigned 1 byte integer. Equivalent to `gen_be_u8!(v)`
