@@ -426,25 +426,36 @@ impl Skip for &mut [u8] {
     }
 }
 
+impl<'a> Skip for io::Cursor<&'a mut [u8]> {
+    fn skip(mut self, len: usize) -> Result<Self, GenError> {
+        let remaining = self.get_ref().len().saturating_sub(self.position() as usize);
+        if remaining < len {
+            Err(GenError::BufferTooSmall(len - remaining))
+        } else {
+            self.set_position(self.position() + len as u64);
+            Ok(self)
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
-    #[cfg(feature = "std")]
     #[test]
-    fn test_pair() {
+    fn test_pair_with_cursor() {
         let mut buf = [0u8; 8];
 
         {
-            use std::io::Cursor;
+            use self::io::Cursor;
 
-            let mut cursor = Cursor::new(&mut buf[..]);
+            let cursor = Cursor::new(&mut buf[..]);
             let serializer = pair(
                 string("1234"),
                 string("5678"),
             );
 
-            let cursor = serializer(&mut cursor).unwrap();
+            let cursor = serializer(cursor).unwrap();
             assert_eq!(cursor.position(), 8);
         }
 
