@@ -57,7 +57,7 @@ mod macros {
 
     let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
     let index = {
-      let (buf, index) = cf_request((&mut buffer, 0), &request).unwrap();
+      let (buf, index) = cf_request((&mut buffer[..], 0), &request).unwrap();
 
       println!("result:\n{}", str::from_utf8(buf).unwrap());
 
@@ -94,21 +94,20 @@ mod functions {
     let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
     let ptr = {
       let sr = fn_request(&request);
-      let buf = sr(&mut buffer).unwrap();
+      let buf = sr(&mut buffer[..]).unwrap();
 
       //println!("result:\n{}", str::from_utf8(buf).unwrap());
 
       buf.as_ptr() as usize
     };
 
-    let index = ptr - (&buffer[..]).as_ptr() as usize;
+    let index = ptr - buffer.as_ptr() as usize;
 
     println!("wrote {} bytes", index);
     b.bytes = index as u64;
     b.iter(|| {
       let sr = fn_request(&request);
-      let res = sr(&mut buffer).unwrap();
-      assert_eq!(res.as_ptr() as usize, ptr);
+      sr(&mut buffer[..]).unwrap();
     });
   }
 }

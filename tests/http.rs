@@ -6,6 +6,7 @@ use implementation::*;
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::io::Cursor;
   use std::str::from_utf8;
 
   #[test]
@@ -29,14 +30,13 @@ mod tests {
     println!("request written by cf:\n{}", from_utf8(&s[..index]).unwrap());
 
     let mut mem2: [u8; 1024] = [0; 1024];
-    let ptr = {
-      let s2 = &mut mem2[..];
-
-      let mut sr = fn_request(&request);
-      let (res, _) = sr(s2).unwrap();
-      res.as_ptr() as usize
+    let (mem2, index2) = {
+      let sr = fn_request(&request);
+      let writer = Cursor::new(&mut mem2[..]);
+      let writer = sr(writer).unwrap();
+      let index2 = writer.position() as usize;
+      (writer.into_inner(), index2)
     };
-    let index2 = ptr - (&mem2[..]).as_ptr() as usize;
     println!("request written by fn:\n{}", from_utf8(&mem2[..index2]).unwrap());
     println!("wrote {} bytes", index2);
 

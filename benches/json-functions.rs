@@ -101,9 +101,9 @@ fn json_test() {
 
   let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
   let pos = {
-    let mut sr = gen_json_value(&value);
+    let sr = gen_json_value(&value);
 
-    let res = sr(&mut buffer).unwrap();
+    let res = sr(&mut buffer[..]).unwrap();
     res.as_ptr() as usize
   };
 
@@ -134,7 +134,7 @@ fn functions_json(b: &mut Bencher) {
   let pos = {
     let sr = gen_json_value(&value);
 
-    let res = sr(&mut buffer).unwrap();
+    let res = sr(&mut buffer[..]).unwrap();
     res.as_ptr() as usize
   };
 
@@ -143,7 +143,7 @@ fn functions_json(b: &mut Bencher) {
   b.bytes = index as u64;
   b.iter(|| {
     let sr = gen_json_value(&value);
-    let _ = sr(&mut buffer).unwrap();
+    let _ = sr(&mut buffer[..]).unwrap();
   });
 }
 
@@ -154,7 +154,7 @@ fn functions_gen_str(b: &mut Bencher) {
   let pos = {
     let sr = gen_str(&"hello");
 
-    let res = sr(&mut buffer).unwrap();
+    let res = sr(&mut buffer[..]).unwrap();
     res.as_ptr() as usize
   };
 
@@ -163,6 +163,6 @@ fn functions_gen_str(b: &mut Bencher) {
   b.bytes = index as u64;
   b.iter(|| {
     let sr = gen_str(&"hello");
-    let _ = sr(&mut buffer).unwrap();
+    let _ = sr(&mut buffer[..]).unwrap();
   });
 }

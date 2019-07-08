@@ -2,6 +2,7 @@ use std::str;
 use std::collections::BTreeMap;
 
 use cookie_factory::*;
+use cookie_factory::lib::std::io::Write;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum JsonValue {
@@ -13,16 +14,16 @@ pub enum JsonValue {
 }
 
 #[inline(always)]
-pub fn gen_str<'a, 'b: 'a>(s: &'b str) -> impl SerializeFn<&'a mut [u8]> {
-  move |out: &'a mut [u8]| {
-    let (out, len1) = string("\"")(out)?;
-    let (out, len2) = string(s)(out)?;
-    string("\"")(out).map(|(out, len)| (out, len + len1 + len2))
+pub fn gen_str<'a, 'b: 'a, W: Write>(s: &'b str) -> impl SerializeFn<W> + 'a {
+  move |out: W| {
+    let out = string("\"")(out)?;
+    let out = string(s)(out)?;
+    string("\"")(out)
   }
 }
 
 #[inline(always)]
-pub fn gen_bool<'a>(b: bool) -> impl SerializeFn<&'a mut [u8]> {
+pub fn gen_bool<W: Write>(b: bool) -> impl SerializeFn<W> {
   if b {
     string("true")
   } else {
@@ -31,38 +32,38 @@ pub fn gen_bool<'a>(b: bool) -> impl SerializeFn<&'a mut [u8]> {
 }
 
 #[inline(always)]
-pub fn gen_num<'a>(_b: f64) -> impl SerializeFn<&'a mut [u8]> {
+pub fn gen_num<W: Write>(_b: f64) -> impl SerializeFn<W> {
   string("1234.56")
 }
 
-pub fn gen_array<'a, 'b: 'a>(arr: &'b [JsonValue]) -> impl SerializeFn<&'a mut [u8]> {
-  move |out: &'a mut [u8]| {
-    let (out, len1) = string("[")(out)?;
-    let (out, len2) = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
-    string("]")(out).map(|(out, len)| (out, len + len1 + len2))
+pub fn gen_array<'a, 'b: 'a, W: Write>(arr: &'b [JsonValue]) -> impl SerializeFn<W> + 'a {
+  move |out: W| {
+    let out = string("[")(out)?;
+    let out = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
+    string("]")(out)
   }
 }
 
-pub fn gen_key_value<'a, 'b: 'a>(kv: (&'b String, &'b JsonValue)) -> impl SerializeFn<&'a mut [u8]> {
-  move |out: &'a mut [u8]| {
-    let (out, len1) = gen_str(kv.0)(out)?;
-    let (out, len2) = string(":")(out)?;
-    gen_json_value(&kv.1)(out).map(|(out, len)| (out, len + len1 + len2))
+pub fn gen_key_value<'a, 'b: 'a, W: Write>(kv: (&'b String, &'b JsonValue)) -> impl SerializeFn<W> + 'a {
+  move |out: W| {
+    let out = gen_str(kv.0)(out)?;
+    let out = string(":")(out)?;
+    gen_json_value(&kv.1)(out)
   }
 }
 
-pub fn gen_object<'a, 'b: 'a>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<&'a mut [u8]> {
-  move |out: &'a mut [u8]| {
-    let (out, len1) = string("{")(out)?;
+pub fn gen_object<'a, 'b: 'a, W: Write>(o: &'b BTreeMap<String, JsonValue>) -> impl SerializeFn<W> + 'a {
+  move |out: W| {
+    let out = string("{")(out)?;
 
-    let (out, len2) = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
-    string("}")(out).map(|(out, len)| (out, len + len1 + len2))
+    let out = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
+    string("}")(out)
   }
 }
 
 
-pub fn gen_json_value<'a>(g: &'a JsonValue) -> impl SerializeFn<&'a mut [u8]> {
-  move |out: &'a mut [u8]| {
+pub fn gen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + 'a {
+  move |out: W| {
     match g {
       JsonValue::Str(ref s) => gen_str(s)(out),
       JsonValue::Boolean(ref b) => gen_bool(*b)(out),
@@ -76,7 +77,8 @@ pub fn gen_json_value<'a>(g: &'a JsonValue) -> impl SerializeFn<&'a mut [u8]> {
 #[test]
 fn json_test() {
   use std::str;
-  use std::iter::repeat;
+  use cookie_factory::lib::std::io::Cursor;
+
   let value = JsonValue::Object(btreemap!{
     String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
     String::from("b") => JsonValue::Boolean(true),
@@ -87,18 +89,14 @@ fn json_test() {
     }),
   });
 
-  let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-  let pos = {
-    let mut sr = gen_json_value(&value);
+  let mut buffer = [0u8; 8192];
+  let sr = gen_json_value(&value);
+  let writer = Cursor::new(&mut buffer[..]);
+  let writer = sr(writer).unwrap();
+  let size = writer.position() as usize;
+  let buffer = writer.into_inner();
 
-    let (res, _) = sr(&mut buffer).unwrap();
-    res.as_ptr() as usize
-  };
-
-  let index = pos - buffer.as_ptr() as usize;
-
-
-  println!("result:\n{}", str::from_utf8(&buffer[..index]).unwrap());
-  assert_eq!(str::from_utf8(&buffer[..index]).unwrap(),
+  println!("result:\n{}", str::from_utf8(&buffer[..size]).unwrap());
+  assert_eq!(str::from_utf8(&buffer[..size]).unwrap(),
     "{\"arr\":[1234.56,1234.56,1234.56],\"b\":true,\"o\":{\"empty\":[],\"x\":\"abcd\",\"y\":\"efgh\"}}");
 }

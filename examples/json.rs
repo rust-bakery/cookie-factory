@@ -8,6 +8,8 @@ use std::{str, iter::repeat};
 use implementation::*;
 
 fn main() {
+  use cookie_factory::lib::std::io::Cursor;
+
   let element = JsonValue::Object(btreemap!{
     String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
     String::from("b") => JsonValue::Boolean(true),
@@ -20,13 +22,12 @@ fn main() {
 
   let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
 
-  let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-
-  let size = {
-    let sr = gen_json_value(&value);
-    let (_, size) = sr(&mut buffer).unwrap();
-    size
-  };
+  let mut buffer = [0u8; 8192];
+  let sr = gen_json_value(&value);
+  let writer = Cursor::new(&mut buffer[..]);
+  let writer = sr(writer).unwrap();
+  let size = writer.position() as usize;
+  let buffer = writer.into_inner();
 
   println!("result:\n{}", str::from_utf8(&buffer[..size]).unwrap());
 }
