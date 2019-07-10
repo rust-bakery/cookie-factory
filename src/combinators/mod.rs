@@ -987,7 +987,7 @@ mod test {
         {
             use self::io::Cursor;
 
-            let mut cursor = Cursor::new(&mut buf[..]);
+            let cursor = Cursor::new(&mut buf[..]);
             let serializer = tuple((
                 string("1234"),
                 string("5678"),
