@@ -36,23 +36,29 @@ codegen-units = 1
 [[example]]
 name = "cursor"
 required-features = ["std"]
+path = "cursor.rs"
 
 [[example]]
 name = "json"
+path = "json.rs"
 
 [[example]]
 name = "http"
 required-features = ["std"]
+path = "examples/http.rs"
 
 [[test]]
 name = "http"
 required-features = ["std"]
+path = "tests/http.rs"
 
 [[test]]
 name = "pouet"
+path = "pouet.rs"
 
 [[test]]
 name = "combinators-json"
+path = "combinators-json.rs"
 
 [badges]
 travis-ci = { repository = "Geal/cookie-factory" }
