@@ -1041,13 +1041,13 @@ mod test {
 
     #[test]
     fn test_back_to_the_buffer() {
-        let mut buf = [0; 8];
+        let mut buf = [0; 9];
         let rest = buf.reserve_write_use(
             4,
             move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
             move |buf, len| be_u32(len as u32)(buf)
         ).unwrap();
-        assert_eq!(&rest, &[]);
-        assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
+        be_u8(42)(rest).unwrap();
+        assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
 }
