@@ -55,7 +55,7 @@ pub mod lib {
 
       // Minimal re-implementation of std::io::Cursor so it
       // also works in non-std environments
-      pub struct Cursor<T>(T, usize);
+      pub struct Cursor<T>(T, u64);
 
       impl<'a> Cursor<&'a mut [u8]> {
         pub fn new(inner: &'a mut [u8]) -> Self {
@@ -71,7 +71,7 @@ pub mod lib {
         }
 
         pub fn set_position(&mut self, pos: u64) {
-            self.1 = pos as usize;
+            self.1 = pos;
         }
 
         pub fn get_mut(&mut self) -> &mut [u8] {
@@ -85,8 +85,8 @@ pub mod lib {
 
       impl<'a> Write for Cursor<&'a mut [u8]> {
         fn write(&mut self, data: &[u8]) -> Result<usize> {
-          let amt = (&mut self.0[self.1..]).write(data)?;
-          self.1 += amt as usize;
+          let amt = (&mut self.0[(self.1 as usize)..]).write(data)?;
+          self.1 += amt as u64;
 
           Ok(amt)
         }
@@ -96,7 +96,7 @@ pub mod lib {
         fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
           let (start, offset) = match pos {
             SeekFrom::Start(n)   => {
-              self.1 = n as usize;
+              self.1 = n;
               return Ok(n);
             },
             SeekFrom::Current(n) => (self.1 as u64, n),
@@ -108,7 +108,7 @@ pub mod lib {
           };
           match new_pos {
             Some(n) => {
-              self.1 = n as usize;
+              self.1 = n;
               Ok(n)
             },
             None    => panic!("invalid seek to a negative or overflowing position"),
