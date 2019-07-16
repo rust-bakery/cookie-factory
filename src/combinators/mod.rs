@@ -22,6 +22,12 @@ pub trait Skip: Write {
     fn skip(self, s: usize) -> Result<Self, GenError> where Self: Sized;
 }
 
+/// Trait for `Write` types that allow skipping and reserving a slice, then writing some data,
+/// then write something in the slice we reserved using the return for our data write.
+pub trait BackToTheBuffer: Write {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> where Self: Sized;
+}
+
 /// Wrapper around `Write` that counts how much data was written
 ///
 /// This can be used to keep track how much data was actually written by serializing functions, for
@@ -964,6 +970,15 @@ impl<'a> Skip for io::Cursor<&'a mut [u8]> {
     }
 }
 
+impl BackToTheBuffer for &mut [u8] {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+        let (res, buf) = self.split_at_mut(reserved);
+        let (buf, tmp) = gen(buf)?;
+        before(res, tmp)?;
+        Ok(buf)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1018,6 +1033,18 @@ mod test {
             let w = string("test")(w).unwrap();
             be_u32(w.position() as u32)(len_buf).unwrap();
         }
+        assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
+    }
+
+    #[test]
+    fn test_back_to_the_buffer() {
+        let mut buf = [0; 8];
+        let rest = buf.reserve_write_use(
+            4,
+            move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+            move |buf, len| be_u32(len as u32)(buf)
+        ).unwrap();
+        assert_eq!(&rest, &[]);
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
     }
 }
