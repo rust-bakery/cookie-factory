@@ -28,6 +28,7 @@ pub trait BackToTheBuffer: Write {
     fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> where Self: Sized;
 }
 
+/// Trait for `Seek` types that want to automatically implement `BackToTheBuffer`
 pub trait Seek: Write + io::Seek {}
 impl<'a> Seek for io::Cursor<&'a mut [u8]> {}
 impl<W: Seek> Seek for WriteCounter<W> {}
