@@ -1017,6 +1017,25 @@ impl BackToTheBuffer for &mut [u8] {
     }
 }
 
+#[cfg(feature = "std")]
+impl BackToTheBuffer for Vec<u8> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+        let start_len = self.len();
+        self.extend(std::iter::repeat(0).take(reserved));
+        let (mut vec, tmp) = gen(self)?;
+        let tmp_vec = before(Vec::new(), tmp)?;
+        let tmp_written = tmp_vec.len();
+        if tmp_written != reserved {
+            return Err(GenError::BufferTooBig(reserved - tmp_written));
+        }
+        // FIXME?: find a way to do that without copying
+        // Vec::from_raw_parts + core::mem::forget makes it work, but
+        // if `before` writes more than `reserved`, realloc will cause troubles
+        vec[start_len..(start_len + reserved)].copy_from_slice(&tmp_vec[..]);
+        Ok(vec)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1084,6 +1103,19 @@ mod test {
         ).unwrap();
         be_u8(42)(rest).unwrap();
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_back_to_the_buffer_vec() {
+        let buf = Vec::new();
+        let buf = buf.reserve_write_use(
+            4,
+            move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+            move |buf, len| be_u32(len as u32)(buf)
+        ).unwrap();
+        let buf = be_u8(42)(buf).unwrap();
+        assert_eq!(&buf[..], &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
 
     #[test]
