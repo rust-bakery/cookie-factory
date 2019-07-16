@@ -976,9 +976,26 @@ impl BackToTheBuffer for &mut [u8] {
         let (buf, tmp) = gen(buf)?;
         let res = before(res, tmp)?;
         if !res.is_empty() {
-            return Err(GenError::BufferTooBig(res.len()))
+            return Err(GenError::BufferTooBig(res.len()));
         }
         Ok(buf)
+    }
+}
+
+impl<'a> BackToTheBuffer for io::Cursor<&'a mut [u8]> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+        let start = self.position();
+        let cursor = self.skip(reserved)?;
+        let (mut cursor, tmp) = gen(cursor)?;
+        let end = cursor.position();
+        cursor.set_position(start);
+        let mut cursor = before(cursor, tmp)?;
+        let written = cursor.position() - start as u64;
+        if written != reserved as u64 {
+            return Err(GenError::BufferTooBig(reserved - written as usize));
+        }
+        cursor.set_position(end);
+        Ok(cursor)
     }
 }
 
@@ -1048,6 +1065,22 @@ mod test {
             move |buf, len| be_u32(len as u32)(buf)
         ).unwrap();
         be_u8(42)(rest).unwrap();
+        assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
+    }
+
+    #[test]
+    fn test_back_to_the_buffer_cursor() {
+        let mut buf = [0; 9];
+        {
+            let cursor = io::Cursor::new(&mut buf[..]);
+            let cursor = cursor.reserve_write_use(
+                4,
+                move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+                move |buf, len| be_u32(len as u32)(buf)
+            ).unwrap();
+            let cursor = be_u8(42)(cursor).unwrap();
+            assert_eq!(cursor.position(), 9);
+        }
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
 }
