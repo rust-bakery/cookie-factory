@@ -974,7 +974,10 @@ impl BackToTheBuffer for &mut [u8] {
     fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
         let (res, buf) = self.split_at_mut(reserved);
         let (buf, tmp) = gen(buf)?;
-        before(res, tmp)?;
+        let res = before(res, tmp)?;
+        if !res.is_empty() {
+            return Err(GenError::BufferTooBig(res.len()))
+        }
         Ok(buf)
     }
 }

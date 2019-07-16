@@ -9,6 +9,8 @@ use crate::lib::std::{fmt, io};
 pub enum GenError {
     /// Input buffer is too small. Argument is the maximum index that is required
     BufferTooSmall(usize),
+    /// We expected to fill the whole buffer but there is some space left
+    BufferTooBig(usize),
     /// Operation asked for accessing an invalid index
     InvalidOffset,
     /// IoError returned by Write
