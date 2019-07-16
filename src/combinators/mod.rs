@@ -137,7 +137,11 @@ impl<W: Seek> io::Seek for WriteCounter<W> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let old_pos = self.0.seek(SeekFrom::Current(0))?;
         let new_pos = self.0.seek(pos)?;
-        self.1 += new_pos - old_pos;
+        if new_pos >= old_pos {
+            self.1 += new_pos - old_pos;
+        } else {
+            self.1 -= old_pos - new_pos;
+        }
         Ok(new_pos)
     }
 }
@@ -1095,5 +1099,25 @@ mod test {
             assert_eq!(cursor.position(), 9);
         }
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
+    }
+
+    #[test]
+    fn test_back_to_the_buffer_cursor_counter() {
+        let mut buf = [0; 10];
+        {
+            let cursor = io::Cursor::new(&mut buf[..]);
+            let cursor = be_u8(64)(cursor).unwrap();
+            let counter = WriteCounter::new(cursor);
+            let counter = counter.reserve_write_use(
+                4,
+                move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+                move |buf, len| be_u32(len as u32)(buf)
+            ).unwrap();
+            let counter = be_u8(42)(counter).unwrap();
+            let (cursor, pos) = counter.into_inner();
+            assert_eq!(pos, 9);
+            assert_eq!(cursor.position(), 10);
+        }
+        assert_eq!(&buf, &[64, 0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
 }
