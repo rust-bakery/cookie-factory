@@ -25,7 +25,7 @@ pub trait Skip: Write {
 /// Trait for `Write` types that allow skipping and reserving a slice, then writing some data,
 /// then write something in the slice we reserved using the return for our data write.
 pub trait BackToTheBuffer: Write {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> where Self: Sized;
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> where Self: Sized;
 }
 
 /// Trait for `Seek` types that want to automatically implement `BackToTheBuffer`
@@ -34,7 +34,7 @@ impl<'a> Seek for io::Cursor<&'a mut [u8]> {}
 impl<W: Seek> Seek for WriteCounter<W> {}
 
 impl<W: Seek> BackToTheBuffer for W {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
         let start = self.seek(SeekFrom::Current(0))?;
         let begin = self.seek(SeekFrom::Current(reserved as i64))?;
         let (mut buf, tmp) = gen(self)?;
@@ -973,6 +973,32 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
     }
 }
 
+/// Reserves space for the `Before` combinator, applies the `Gen` combinator,
+/// then applies the `Before` combinator with the output from `Gen` onto the
+/// reserved space.
+///
+/// ```rust
+/// use cookie_factory::{tuple, back_to_the_buffer, string, be_u8, be_u32, WriteCounter};
+///
+/// let mut buf = [0; 9];
+/// tuple((
+///     back_to_the_buffer(
+///         4,
+///         move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+///         move |buf, len| be_u32(len as u32)(buf)
+///     ),
+///     be_u8(42)
+/// ))(&mut buf[..]).unwrap();
+/// assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
+/// ```
+pub fn back_to_the_buffer<W: BackToTheBuffer, Tmp, Gen, Before>(reserved: usize, gen: Gen, before: Before) -> impl SerializeFn<W>
+where Gen: Fn(W) -> GenResult<(W, Tmp)>,
+      Before: Fn(W, Tmp) -> GenResult<W> {
+    move |w: W| {
+        w.reserve_write_use(reserved, &gen, &before)
+    }
+}
+
 //missing combinators:
 //or
 //empty
@@ -1006,7 +1032,7 @@ impl<'a> Skip for io::Cursor<&'a mut [u8]> {
 }
 
 impl BackToTheBuffer for &mut [u8] {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
         let (res, buf) = self.split_at_mut(reserved);
         let (buf, tmp) = gen(buf)?;
         let res = before(res, tmp)?;
@@ -1019,7 +1045,7 @@ impl BackToTheBuffer for &mut [u8] {
 
 #[cfg(feature = "std")]
 impl BackToTheBuffer for Vec<u8> {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
         let start_len = self.len();
         self.extend(std::iter::repeat(0).take(reserved));
         let (mut vec, tmp) = gen(self)?;
@@ -1098,8 +1124,8 @@ mod test {
         let mut buf = [0; 9];
         let rest = buf.reserve_write_use(
             4,
-            move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-            move |buf, len| be_u32(len as u32)(buf)
+            &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+            &move |buf, len| be_u32(len as u32)(buf)
         ).unwrap();
         be_u8(42)(rest).unwrap();
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
@@ -1111,8 +1137,8 @@ mod test {
         let buf = Vec::new();
         let buf = buf.reserve_write_use(
             4,
-            move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-            move |buf, len| be_u32(len as u32)(buf)
+            &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+            &move |buf, len| be_u32(len as u32)(buf)
         ).unwrap();
         let buf = be_u8(42)(buf).unwrap();
         assert_eq!(&buf[..], &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
@@ -1125,8 +1151,8 @@ mod test {
             let cursor = io::Cursor::new(&mut buf[..]);
             let cursor = cursor.reserve_write_use(
                 4,
-                move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-                move |buf, len| be_u32(len as u32)(buf)
+                &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+                &move |buf, len| be_u32(len as u32)(buf)
             ).unwrap();
             let cursor = be_u8(42)(cursor).unwrap();
             assert_eq!(cursor.position(), 9);
@@ -1143,8 +1169,8 @@ mod test {
             let counter = WriteCounter::new(cursor);
             let counter = counter.reserve_write_use(
                 4,
-                move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-                move |buf, len| be_u32(len as u32)(buf)
+                &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
+                &move |buf, len| be_u32(len as u32)(buf)
             ).unwrap();
             let counter = be_u8(42)(counter).unwrap();
             let (cursor, pos) = counter.into_inner();
