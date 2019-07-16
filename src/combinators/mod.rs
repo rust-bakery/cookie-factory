@@ -32,6 +32,23 @@ pub trait Seek: Write + io::Seek {}
 impl<'a> Seek for io::Cursor<&'a mut [u8]> {}
 impl<W: Seek> Seek for WriteCounter<W> {}
 
+impl<W: Seek> BackToTheBuffer for W {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
+        let start = self.seek(SeekFrom::Current(0))?;
+        let begin = self.seek(SeekFrom::Current(reserved as i64))?;
+        let (mut buf, tmp) = gen(self)?;
+        let end = buf.seek(SeekFrom::Current(0))?;
+        buf.seek(SeekFrom::Start(start))?;
+        let mut buf = before(buf, tmp)?;
+        let pos = buf.seek(SeekFrom::Current(0))?;
+        if pos != begin {
+            return Err(GenError::BufferTooBig((begin - pos) as usize));
+        }
+        buf.seek(SeekFrom::Start(end))?;
+        Ok(buf)
+    }
+}
+
 /// Wrapper around `Write` that counts how much data was written
 ///
 /// This can be used to keep track how much data was actually written by serializing functions, for
@@ -992,23 +1009,6 @@ impl BackToTheBuffer for &mut [u8] {
             return Err(GenError::BufferTooBig(res.len()));
         }
         Ok(buf)
-    }
-}
-
-impl<'a> BackToTheBuffer for io::Cursor<&'a mut [u8]> {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> {
-        let start = self.position();
-        let cursor = self.skip(reserved)?;
-        let (mut cursor, tmp) = gen(cursor)?;
-        let end = cursor.position();
-        cursor.set_position(start);
-        let mut cursor = before(cursor, tmp)?;
-        let written = cursor.position() - start as u64;
-        if written != reserved as u64 {
-            return Err(GenError::BufferTooBig(reserved - written as usize));
-        }
-        cursor.set_position(end);
-        Ok(cursor)
     }
 }
 
