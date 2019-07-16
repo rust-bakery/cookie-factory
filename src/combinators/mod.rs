@@ -1,5 +1,5 @@
 use crate::gen::GenError;
-use crate::lib::std::io::{self, Write};
+use crate::lib::std::io::{self, SeekFrom, Write};
 
 /// Holds the result of serializing functions
 ///
@@ -27,6 +27,10 @@ pub trait Skip: Write {
 pub trait BackToTheBuffer: Write {
     fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: Gen, before: Before) -> GenResult<Self> where Self: Sized;
 }
+
+pub trait Seek: Write + io::Seek {}
+impl<'a> Seek for io::Cursor<&'a mut [u8]> {}
+impl<W: Seek> Seek for WriteCounter<W> {}
 
 /// Wrapper around `Write` that counts how much data was written
 ///
@@ -109,6 +113,15 @@ impl<W: Skip> Skip for WriteCounter<W> {
         self.0 = self.0.skip(len)?;
         self.1 += len as u64;
         Ok(self)
+    }
+}
+
+impl<W: Seek> io::Seek for WriteCounter<W> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let old_pos = self.0.seek(SeekFrom::Current(0))?;
+        let new_pos = self.0.seek(pos)?;
+        self.1 += new_pos - old_pos;
+        Ok(new_pos)
     }
 }
 

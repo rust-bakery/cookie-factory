@@ -31,6 +31,12 @@ impl fmt::Display for GenError {
 #[cfg(feature = "std")]
 impl std::error::Error for GenError {}
 
+impl From<io::Error> for GenError {
+    fn from(err: io::Error) -> Self {
+        GenError::IoError(err)
+    }
+}
+
 pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError>
   where G: SerializeFn<io::Cursor<&'a mut [u8]>> {
       let (buf, offset) = x;

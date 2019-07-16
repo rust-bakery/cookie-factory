@@ -14,7 +14,7 @@ pub mod lib {
   #[cfg(feature = "std")]
   pub mod std {
     pub mod io {
-      pub use std::io::{Write, Result, Error, Cursor};
+      pub use std::io::{Write, Result, Error, Cursor, Seek, SeekFrom};
     }
     pub use std::{cmp, fmt, iter, mem, result, slice};
   }
@@ -42,6 +42,15 @@ pub mod lib {
           *self = b;
           Ok(amt)
         }
+      }
+
+      pub enum SeekFrom {
+        Start(u64),
+        Current(i64),
+      }
+
+      pub trait Seek {
+        fn seek(&mut self, pos: SeekFrom) -> Result<u64>;
       }
 
       // Minimal re-implementation of std::io::Cursor so it
@@ -80,6 +89,30 @@ pub mod lib {
           self.1 += amt as usize;
 
           Ok(amt)
+        }
+      }
+
+      impl<'a> Seek for Cursor<&'a mut [u8]> {
+        fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+          let (start, offset) = match pos {
+            SeekFrom::Start(n)   => {
+              self.1 = n as usize;
+              return Ok(n);
+            },
+            SeekFrom::Current(n) => (self.1 as u64, n),
+          };
+          let new_pos = if offset >= 0 {
+            start.checked_add(offset as u64)
+          } else {
+            start.checked_sub((offset.wrapping_neg()) as u64)
+          };
+          match new_pos {
+            Some(n) => {
+              self.1 = n as usize;
+              Ok(n)
+            },
+            None    => panic!("invalid seek to a negative or overflowing position"),
+          }
         }
       }
     }
