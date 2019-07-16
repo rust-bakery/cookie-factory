@@ -98,6 +98,14 @@ impl<W: Write> Write for WriteCounter<W> {
     }
 }
 
+impl<W: Skip> Skip for WriteCounter<W> {
+    fn skip(mut self, len: usize) -> Result<Self, GenError> {
+        self.0 = self.0.skip(len)?;
+        self.1 += len as u64;
+        Ok(self)
+    }
+}
+
 macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
     match $out.write($data) {
         Err(io)           => Err(GenError::IoError(io)),
