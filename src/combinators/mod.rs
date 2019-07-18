@@ -25,28 +25,40 @@ pub trait Skip: Write {
 /// Trait for `Write` types that allow skipping and reserving a slice, then writing some data,
 /// then write something in the slice we reserved using the return for our data write.
 pub trait BackToTheBuffer: Write {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> where Self: Sized;
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> where Self: Sized;
 }
 
 /// Trait for `Seek` types that want to automatically implement `BackToTheBuffer`
 pub trait Seek: Write + io::Seek {}
 impl Seek for io::Cursor<&mut [u8]> {}
-impl<W: Seek> Seek for WriteCounter<W> {}
 
 impl<W: Seek> BackToTheBuffer for W {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
         let start = self.seek(SeekFrom::Current(0))?;
         let begin = self.seek(SeekFrom::Current(reserved as i64))?;
         let (mut buf, tmp) = gen(self)?;
         let end = buf.seek(SeekFrom::Current(0))?;
         buf.seek(SeekFrom::Start(start))?;
-        let mut buf = before(buf, tmp)?;
+        let mut buf = before(buf, &tmp)?;
         let pos = buf.seek(SeekFrom::Current(0))?;
         if pos != begin {
             return Err(GenError::BufferTooBig((begin - pos) as usize));
         }
         buf.seek(SeekFrom::Start(end))?;
-        Ok(buf)
+        Ok((buf, tmp))
+    }
+}
+
+impl<W: BackToTheBuffer> BackToTheBuffer for WriteCounter<W> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
+        let (buf, len) = self.into_inner();
+        buf.reserve_write_use(reserved,
+            &move |buf| gen(WriteCounter(buf, len + reserved as u64)).map(|(c, tmp)| {
+                let (b, l) = c.into_inner();
+                (b, (tmp, l))
+            }),
+            &move |buf, (tmp, _)| before(WriteCounter::new(buf), tmp).map(|c| c.into_inner().0)
+        ).map(|(buf, (tmp, l))| (WriteCounter(buf, l), tmp))
     }
 }
 
@@ -985,7 +997,7 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
 ///     back_to_the_buffer(
 ///         4,
 ///         move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-///         move |buf, len| be_u32(len as u32)(buf)
+///         move |buf, len| be_u32(*len as u32)(buf)
 ///     ),
 ///     be_u8(42)
 /// ))(&mut buf[..]).unwrap();
@@ -993,9 +1005,9 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
 /// ```
 pub fn back_to_the_buffer<W: BackToTheBuffer, Tmp, Gen, Before>(reserved: usize, gen: Gen, before: Before) -> impl SerializeFn<W>
 where Gen: Fn(W) -> GenResult<(W, Tmp)>,
-      Before: Fn(W, Tmp) -> GenResult<W> {
+      Before: Fn(W, &Tmp) -> GenResult<W> {
     move |w: W| {
-        w.reserve_write_use(reserved, &gen, &before)
+        w.reserve_write_use(reserved, &gen, &before).map(|t| t.0)
     }
 }
 
@@ -1032,39 +1044,24 @@ impl Skip for io::Cursor<&mut [u8]> {
 }
 
 impl BackToTheBuffer for &mut [u8] {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
         let (res, buf) = self.split_at_mut(reserved);
         let (buf, tmp) = gen(buf)?;
-        let res = before(res, tmp)?;
+        let res = before(res, &tmp)?;
         if !res.is_empty() {
             return Err(GenError::BufferTooBig(res.len()));
         }
-        Ok(buf)
-    }
-}
-
-impl BackToTheBuffer for WriteCounter<&mut [u8]> {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
-        let (buf, len) = self.into_inner();
-        let (res, buf) = buf.split_at_mut(reserved);
-        let buf = WriteCounter(buf, len + reserved as u64);
-        let res = WriteCounter::new(res);
-        let (buf, tmp) = gen(buf)?;
-        let (res, _) = before(res, tmp)?.into_inner();
-        if !res.is_empty() {
-            return Err(GenError::BufferTooBig(res.len()));
-        }
-        Ok(buf)
+        Ok((buf, tmp))
     }
 }
 
 #[cfg(feature = "std")]
 impl BackToTheBuffer for Vec<u8> {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
         let start_len = self.len();
         self.extend(std::iter::repeat(0).take(reserved));
         let (mut vec, tmp) = gen(self)?;
-        let tmp_vec = before(Vec::new(), tmp)?;
+        let tmp_vec = before(Vec::new(), &tmp)?;
         let tmp_written = tmp_vec.len();
         if tmp_written != reserved {
             return Err(GenError::BufferTooBig(reserved - tmp_written));
@@ -1073,7 +1070,7 @@ impl BackToTheBuffer for Vec<u8> {
         // Vec::from_raw_parts + core::mem::forget makes it work, but
         // if `before` writes more than `reserved`, realloc will cause troubles
         vec[start_len..(start_len + reserved)].copy_from_slice(&tmp_vec[..]);
-        Ok(vec)
+        Ok((vec, tmp))
     }
 }
 
@@ -1140,8 +1137,8 @@ mod test {
         let rest = buf.reserve_write_use(
             4,
             &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-            &move |buf, len| be_u32(len as u32)(buf)
-        ).unwrap();
+            &move |buf, len| be_u32(*len as u32)(buf)
+        ).unwrap().0;
         be_u8(42)(rest).unwrap();
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
@@ -1153,8 +1150,8 @@ mod test {
         let buf = buf.reserve_write_use(
             4,
             &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-            &move |buf, len| be_u32(len as u32)(buf)
-        ).unwrap();
+            &move |buf, len| be_u32(*len as u32)(buf)
+        ).unwrap().0;
         let buf = be_u8(42)(buf).unwrap();
         assert_eq!(&buf[..], &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
@@ -1167,8 +1164,8 @@ mod test {
             let cursor = cursor.reserve_write_use(
                 4,
                 &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-                &move |buf, len| be_u32(len as u32)(buf)
-            ).unwrap();
+                &move |buf, len| be_u32(*len as u32)(buf)
+            ).unwrap().0;
             let cursor = be_u8(42)(cursor).unwrap();
             assert_eq!(cursor.position(), 9);
         }
@@ -1185,8 +1182,8 @@ mod test {
             let counter = counter.reserve_write_use(
                 4,
                 &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-                &move |buf, len| be_u32(len as u32)(buf)
-            ).unwrap();
+                &move |buf, len| be_u32(*len as u32)(buf)
+            ).unwrap().0;
             let counter = be_u8(42)(counter).unwrap();
             let (cursor, pos) = counter.into_inner();
             assert_eq!(pos, 9);
