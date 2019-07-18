@@ -1019,7 +1019,7 @@ impl Skip for &mut [u8] {
     }
 }
 
-impl<'a> Skip for io::Cursor<&'a mut [u8]> {
+impl Skip for io::Cursor<&mut [u8]> {
     fn skip(mut self, len: usize) -> Result<Self, GenError> {
         let remaining = self.get_ref().len().saturating_sub(self.position() as usize);
         if remaining < len {
