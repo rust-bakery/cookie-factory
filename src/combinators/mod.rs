@@ -1043,6 +1043,21 @@ impl BackToTheBuffer for &mut [u8] {
     }
 }
 
+impl BackToTheBuffer for WriteCounter<&mut [u8]> {
+    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
+        let (buf, len) = self.into_inner();
+        let (res, buf) = buf.split_at_mut(reserved);
+        let buf = WriteCounter(buf, len + reserved as u64);
+        let res = WriteCounter::new(res);
+        let (buf, tmp) = gen(buf)?;
+        let (res, _) = before(res, tmp)?.into_inner();
+        if !res.is_empty() {
+            return Err(GenError::BufferTooBig(res.len()));
+        }
+        Ok(buf)
+    }
+}
+
 #[cfg(feature = "std")]
 impl BackToTheBuffer for Vec<u8> {
     fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<Self> {
