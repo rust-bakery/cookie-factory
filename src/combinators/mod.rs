@@ -30,7 +30,7 @@ pub trait BackToTheBuffer: Write {
 
 /// Trait for `Seek` types that want to automatically implement `BackToTheBuffer`
 pub trait Seek: Write + io::Seek {}
-impl<'a> Seek for io::Cursor<&'a mut [u8]> {}
+impl Seek for io::Cursor<&mut [u8]> {}
 impl<W: Seek> Seek for WriteCounter<W> {}
 
 impl<W: Seek> BackToTheBuffer for W {
