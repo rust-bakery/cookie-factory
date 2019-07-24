@@ -4,6 +4,7 @@ extern crate cookie_factory;
 use crate::implementation::*;
 
 fn main() {
+  use cookie_factory::gen;
   let request = Request {
     method: "GET",
     uri: "/hello/test/a/b/c?name=value#hash",
@@ -18,9 +19,8 @@ fn main() {
 
 
   let sr = fn_request(&request);
-  let writer = cookie_factory::WriteCounter::new(vec![]);
-  let writer = sr(writer).unwrap();
-  let (buffer, size) = writer.into_inner();
+  let writer = vec![];
+  let (buffer, size) = gen(sr, writer).unwrap();
 
   println!("result:\n{}", std::str::from_utf8(&buffer[..(size as usize)]).unwrap());
 }

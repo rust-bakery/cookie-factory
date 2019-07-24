@@ -43,7 +43,7 @@ pub fn legacy_wrap<'a, G>(gen: G, x: (&'a mut [u8], usize)) -> Result<(&'a mut [
       let (buf, offset) = {
           let mut cursor = io::Cursor::new(buf);
           cursor.set_position(offset as u64);
-          let cursor = gen(cursor)?;
+          let cursor = gen_simple(gen, cursor)?;
           let position = cursor.position();
           (cursor.into_inner(), position)
       };

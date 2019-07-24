@@ -9,6 +9,7 @@ use crate::implementation::*;
 fn json_test() {
   use std::str;
   use cookie_factory::lib::std::io::Cursor;
+  use cookie_factory::gen_simple;
 
   let value = JsonValue::Object(btreemap!{
     String::from("arr") => JsonValue::Array(vec![JsonValue::Num(1.0), JsonValue::Num(12.3), JsonValue::Num(42.0)]),
@@ -25,7 +26,7 @@ fn json_test() {
   let mut buffer = [0u8; 8192];
   let sr = gen_json_value(&value);
   let writer = Cursor::new(&mut buffer[..]);
-  let writer = sr(writer).unwrap();
+  let writer = gen_simple(sr, writer).unwrap();
   let size = writer.position() as usize;
   let buffer = writer.into_inner();
 

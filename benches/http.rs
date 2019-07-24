@@ -74,6 +74,7 @@ mod macros {
 
 mod functions {
   use super::*;
+  use cookie_factory::{gen, gen_simple};
 
   #[bench]
   fn http(b: &mut Bencher) {
@@ -91,22 +92,20 @@ mod functions {
 
 
     let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
-    let ptr = {
+    let index = {
       let sr = fn_request(&request);
-      let buf = sr(&mut buffer[..]).unwrap();
+      let (_, pos) = gen(sr, &mut buffer[..]).unwrap();
 
       //println!("result:\n{}", str::from_utf8(buf).unwrap());
 
-      buf.as_ptr() as usize
+      pos as usize
     };
-
-    let index = ptr - buffer.as_ptr() as usize;
 
     println!("wrote {} bytes", index);
     b.bytes = index as u64;
     b.iter(|| {
       let sr = fn_request(&request);
-      sr(&mut buffer[..]).unwrap();
+      let _ = gen_simple(sr, &mut buffer[..]).unwrap();
     });
   }
 }

@@ -1,7 +1,7 @@
 extern crate cookie_factory;
 
 use std::io::{Write, sink};
-use cookie_factory::{WriteCounter, SerializeFn, pair, string};
+use cookie_factory::{SerializeFn, pair, string, gen, gen_simple};
 
 fn serializer<W: Write>() -> impl SerializeFn<W> {
   pair(string("Hello "), string("World!"))
@@ -9,14 +9,14 @@ fn serializer<W: Write>() -> impl SerializeFn<W> {
 
 fn main() {
   let s = {
-    let mut c = WriteCounter::new(sink());
+    let c = sink();
     let ser = serializer();
-    match ser(&mut c) {
+    match gen(ser, c) {
       Err(e) => {
         panic!("error calculating the length to serialize: {:?}", e);
       },
-      Ok(w) => {
-        w.position() as usize
+      Ok((_, pos)) => {
+        pos as usize
       }
     }
   };
@@ -27,7 +27,7 @@ fn main() {
   let v = {
     let v = Vec::with_capacity(s);
     let ser = serializer();
-    match ser(v) {
+    match gen_simple(ser, v) {
       Err(e) => {
         panic!("error serializing: {:?}", e);
       },

@@ -8,6 +8,7 @@ mod tests {
   use super::*;
   use std::io::Cursor;
   use std::str::from_utf8;
+  use cookie_factory::gen_simple;
 
   #[test]
   fn request() {
@@ -33,7 +34,7 @@ mod tests {
     let (mem2, index2) = {
       let sr = fn_request(&request);
       let writer = Cursor::new(&mut mem2[..]);
-      let writer = sr(writer).unwrap();
+      let writer = gen_simple(sr, writer).unwrap();
       let index2 = writer.position() as usize;
       (writer.into_inner(), index2)
     };
