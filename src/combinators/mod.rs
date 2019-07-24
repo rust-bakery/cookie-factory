@@ -1,31 +1,122 @@
 use crate::gen::GenError;
-use crate::lib::std::io::{self, SeekFrom, Write};
+use crate::lib::std::io::{self, SeekFrom, Write, Seek as _};
 
 /// Holds the result of serializing functions
 ///
 /// The `Ok` case returns the `Write` used for writing, in the `Err` case an instance of
 /// `cookie_factory::GenError` is returned.
-pub type GenResult<I> = Result<I, GenError>;
+pub type GenResult<W> = Result<WriteContext<W>, GenError>;
 
 /// Trait for serializing functions
 ///
-/// Serializing functions take one input `I` that is the target of writing and return an instance
+/// Serializing functions take one input `W` that is the target of writing and return an instance
 /// of `cookie_factory::GenResult`.
 ///
-/// This trait is implemented for all `Fn(I) -> GenResult<I>`.
-pub trait SerializeFn<I>: Fn(I) -> GenResult<I> {}
+/// This trait is implemented for all `Fn(W) -> GenResult<W>`.
+pub trait SerializeFn<W>: Fn(WriteContext<W>) -> GenResult<W> {}
 
-impl<I, F: Fn(I) -> GenResult<I>> SerializeFn<I> for F {}
+impl<W, F: Fn(WriteContext<W>) -> GenResult<W>> SerializeFn<W> for F {}
+
+/// Context around a `Write` impl that is passed through serializing functions
+///
+/// Currently this only keeps track of the current write position since the start of serialization.
+pub struct WriteContext<W> {
+    pub write: W,
+    pub position: u64,
+}
+
+impl<W: Write> From<W> for WriteContext<W> {
+    fn from(write: W) -> Self {
+        Self {
+            write,
+            position: 0,
+        }
+    }
+}
+
+impl<W: Write> WriteContext<W> {
+    /// Returns the contained `Write` and the current position
+    pub fn into_inner(self) -> (W, u64) {
+        (self.write, self.position)
+    }
+}
+
+impl<W: Write> Write for WriteContext<W> {
+    fn write(&mut self, data: &[u8]) -> crate::lib::std::io::Result<usize> {
+        let amt = self.write.write(data)?;
+        self.position += amt as u64;
+        Ok(amt)
+    }
+
+    #[cfg(feature = "std")]
+    fn flush(&mut self) -> io::Result<()> {
+        self.write.flush()
+    }
+}
+
+impl<W: Seek> io::Seek for WriteContext<W> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let old_pos = self.write.seek(SeekFrom::Current(0))?;
+        let new_pos = self.write.seek(pos)?;
+        if new_pos >= old_pos {
+            self.position += new_pos - old_pos;
+        } else {
+            self.position -= old_pos - new_pos;
+        }
+        Ok(new_pos)
+    }
+}
+
+/// Runs the given serializer `f` with the `Write` impl `w` and returns the result
+///
+/// This internally wraps `w` in a `WriteContext`, starting at position 0.
+///
+/// ```rust
+/// use cookie_factory::{gen, slice};
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let (buf, pos) = gen(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+///   assert_eq!(pos, 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
+pub fn gen<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<(W, u64), GenError> {
+    f(WriteContext::from(w)).map(|ctx| ctx.into_inner())
+}
+
+/// Runs the given serializer `f` with the `Write` impl `w` and returns the updated `w`
+///
+/// This internally wraps `w` in a `WriteContext`, starting at position 0.
+///
+/// ```rust
+/// use cookie_factory::{gen_simple, slice};
+///
+/// let mut buf = [0u8; 100];
+///
+/// {
+///   let buf = gen_simple(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
+///   assert_eq!(buf.len(), 100 - 4);
+/// }
+///
+/// assert_eq!(&buf[..4], &b"abcd"[..]);
+/// ```
+pub fn gen_simple<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<W, GenError> {
+    f(WriteContext::from(w)).map(|ctx| ctx.into_inner().0)
+}
 
 /// Trait for `Write` types that allow skipping over the data
 pub trait Skip: Write {
-    fn skip(self, s: usize) -> Result<Self, GenError> where Self: Sized;
+    fn skip(s: WriteContext<Self>, s: usize) -> GenResult<Self> where Self: Sized;
 }
 
 /// Trait for `Write` types that allow skipping and reserving a slice, then writing some data,
 /// then write something in the slice we reserved using the return for our data write.
 pub trait BackToTheBuffer: Write {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> where Self: Sized;
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> where Self: Sized;
 }
 
 /// Trait for `Seek` types that want to automatically implement `BackToTheBuffer`
@@ -33,10 +124,10 @@ pub trait Seek: Write + io::Seek {}
 impl Seek for io::Cursor<&mut [u8]> {}
 
 impl<W: Seek> BackToTheBuffer for W {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
-        let start = self.seek(SeekFrom::Current(0))?;
-        let begin = self.seek(SeekFrom::Current(reserved as i64))?;
-        let (mut buf, tmp) = gen(self)?;
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(mut s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> {
+        let start = s.seek(SeekFrom::Current(0))?;
+        let begin = s.seek(SeekFrom::Current(reserved as i64))?;
+        let (mut buf, tmp) = gen(s)?;
         let end = buf.seek(SeekFrom::Current(0))?;
         buf.seek(SeekFrom::Start(start))?;
         let mut buf = before(buf, &tmp)?;
@@ -46,116 +137,6 @@ impl<W: Seek> BackToTheBuffer for W {
         }
         buf.seek(SeekFrom::Start(end))?;
         Ok((buf, tmp))
-    }
-}
-
-impl<W: BackToTheBuffer> BackToTheBuffer for WriteCounter<W> {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
-        let (buf, len) = self.into_inner();
-        buf.reserve_write_use(reserved,
-            &move |buf| gen(WriteCounter(buf, len + reserved as u64)).map(|(c, tmp)| {
-                let (b, l) = c.into_inner();
-                (b, (tmp, l))
-            }),
-            &move |buf, (tmp, _)| before(WriteCounter::new(buf), tmp).map(|c| c.into_inner().0)
-        ).map(|(buf, (tmp, l))| (WriteCounter(buf, l), tmp))
-    }
-}
-
-/// Wrapper around `Write` that counts how much data was written
-///
-/// This can be used to keep track how much data was actually written by serializing functions, for
-/// example
-///
-/// ```rust
-/// use cookie_factory::{WriteCounter, string};
-///
-/// let mut buf = [0u8; 100];
-///
-/// {
-///     let mut writer = WriteCounter::new(&mut buf[..]);
-///     writer = string("abcd")(writer).unwrap();
-///     assert_eq!(writer.position(), 4);
-///     let (buf, len) = writer.into_inner();
-///     assert_eq!(buf.len(), 96);
-///     assert_eq!(len, 4);
-/// }
-///
-/// assert_eq!(&buf[..4], &b"abcd"[..]);
-/// ```
-///
-/// For byte slices `std::io::Cursor` provides more features and allows to retrieve the original
-/// slice
-///
-/// ```rust
-/// #[cfg(feature = "std")]
-/// use std::io::Cursor;
-/// #[cfg(not(feature = "std"))]
-/// use cookie_factory::lib::std::io::{Cursor, Write};
-///
-/// use cookie_factory::string;
-///
-/// let mut buf = [0u8; 100];
-///
-/// let mut cursor = Cursor::new(&mut buf[..]);
-/// cursor = string("abcd")(cursor).unwrap();
-/// assert_eq!(cursor.position(), 4);
-/// let buf = cursor.into_inner();
-///
-/// assert_eq!(&buf[..4], &b"abcd"[..]);
-/// ```
-pub struct WriteCounter<W>(W, u64);
-
-impl<W: Write> WriteCounter<W> {
-    /// Create a new `WriteCounter` around `w`
-    pub fn new(w: W) -> Self {
-        WriteCounter(w, 0)
-    }
-
-    /// Returns the amount of bytes written so far
-    pub fn position(&self) -> u64 {
-        self.1
-    }
-
-    /// Consumes the `WriteCounter` and returns the contained `Write` and the amount of bytes
-    /// written
-    pub fn into_inner(self) -> (W, u64) {
-        (self.0, self.1)
-    }
-}
-
-impl<W: Write> Write for WriteCounter<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let written = self.0.write(buf)?;
-        self.1 += written as u64;
-        Ok(written)
-    }
-
-    // Our minimal Write trait has no flush()
-    #[cfg(feature = "std")]
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
-    }
-}
-
-impl<W: Skip> Skip for WriteCounter<W> {
-    fn skip(mut self, len: usize) -> Result<Self, GenError> {
-        self.0 = self.0.skip(len)?;
-        self.1 += len as u64;
-        Ok(self)
-    }
-}
-
-impl<W: Seek> io::Seek for WriteCounter<W> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let old_pos = self.0.seek(SeekFrom::Current(0))?;
-        let new_pos = self.0.seek(pos)?;
-        if new_pos >= old_pos {
-            self.1 += new_pos - old_pos;
-        } else {
-            self.1 -= old_pos - new_pos;
-        }
-        Ok(new_pos)
     }
 }
 
@@ -170,12 +151,13 @@ macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
 /// Writes a byte slice to the output
 ///
 /// ```rust
-/// use cookie_factory::slice;
+/// use cookie_factory::{gen, slice};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = slice(&b"abcd"[..])(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -184,7 +166,7 @@ macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
 pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
     let len = data.as_ref().len();
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, data.as_ref())
     }
 }
@@ -192,12 +174,13 @@ pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
 /// Writes a string slice to the output
 ///
 /// ```rust
-/// use cookie_factory::string;
+/// use cookie_factory::{gen, string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = string("abcd")(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(string("abcd"), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -206,7 +189,7 @@ pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
 pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
     let len = data.as_ref().len();
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, data.as_ref().as_bytes())
     }
 }
@@ -214,19 +197,20 @@ pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
 /// Writes an hex string to the output
 #[cfg(feature = "std")]
 /// ```rust
-/// use cookie_factory::hex;
+/// use cookie_factory::{gen, hex};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = hex(0x2A)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(hex(0x2A), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 2);
 ///   assert_eq!(buf.len(), 100 - 2);
 /// }
 ///
 /// assert_eq!(&buf[..2], &b"2A"[..]);
 /// ```
 pub fn hex<S: crate::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl SerializeFn<W> {
-  move |mut out: W| {
+  move |mut out: WriteContext<W>| {
     match write!(out, "{:X}", data) {
       Err(io) => Err(GenError::IoError(io)),
       Ok(())  => Ok(out)
@@ -237,39 +221,41 @@ pub fn hex<S: crate::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl Seriali
 /// Skips over some input bytes without writing anything
 ///
 /// ```rust
-/// use cookie_factory::skip;
+/// use cookie_factory::{gen, skip};
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let out = skip(2)(&mut buf[..]).unwrap();
+/// let (out, pos) = gen(skip(2), &mut buf[..]).unwrap();
 ///
+/// assert_eq!(pos, 2);
 /// assert_eq!(out.len(), 98);
 /// ```
 pub fn skip<W: Write + Skip>(len: usize) -> impl SerializeFn<W> {
-    move |out: W| {
-        out.skip(len)
+    move |out: WriteContext<W>| {
+        W::skip(out, len)
     }
 }
 
 /// Applies 2 serializers in sequence
 ///
 /// ```rust
-/// use cookie_factory::{pair, string};
+/// use cookie_factory::{gen, pair, string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = pair(string("abcd"), string("efgh"))(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(pair(string("abcd"), string("efgh")), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
 /// assert_eq!(&buf[..8], &b"abcdefgh"[..]);
 /// ```
-pub fn pair<F, G, I: Write>(first: F, second: G) -> impl SerializeFn<I>
-where F: SerializeFn<I>,
-      G: SerializeFn<I> {
+pub fn pair<F, G, W: Write>(first: F, second: G) -> impl SerializeFn<W>
+where F: SerializeFn<W>,
+      G: SerializeFn<W> {
 
-  move |out: I| {
+  move |out: WriteContext<W>| {
     first(out).and_then(&second)
   }
 }
@@ -277,21 +263,22 @@ where F: SerializeFn<I>,
 /// Applies a serializer if the condition is true
 ///
 /// ```rust
-/// use cookie_factory::{cond, string};
+/// use cookie_factory::{gen, cond, string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = cond(true, string("abcd"))(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(cond(true, string("abcd")), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
-pub fn cond<F, I: Write>(condition: bool, f: F) -> impl SerializeFn<I>
-where F: SerializeFn<I>, {
+pub fn cond<F, W: Write>(condition: bool, f: F) -> impl SerializeFn<W>
+where F: SerializeFn<W>, {
 
-  move |out: I| {
+  move |out: WriteContext<W>| {
     if condition {
       f(out)
     } else {
@@ -303,23 +290,24 @@ where F: SerializeFn<I>, {
 /// Applies an iterator of serializers of the same type
 ///
 /// ```rust
-/// use cookie_factory::{all, string};
+/// use cookie_factory::{gen, all, string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
 /// {
-///   let buf = all(data.iter().map(string))(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(all(data.iter().map(string)), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 12);
 ///   assert_eq!(buf.len(), 100 - 12);
 /// }
 ///
 /// assert_eq!(&buf[..12], &b"abcdefghijkl"[..]);
 /// ```
-pub fn all<G, I: Write, It>(values: It) -> impl SerializeFn<I>
-  where G: SerializeFn<I>,
+pub fn all<G, W: Write, It>(values: It) -> impl SerializeFn<W>
+  where G: SerializeFn<W>,
         It: Clone + Iterator<Item=G> {
 
-  move |mut out: I| {
+  move |mut out: WriteContext<W>| {
     let it = values.clone();
 
     for v in it {
@@ -333,24 +321,25 @@ pub fn all<G, I: Write, It>(values: It) -> impl SerializeFn<I>
 /// Applies an iterator of serializers of the same type with a separator between each serializer
 ///
 /// ```rust
-/// use cookie_factory::{separated_list, string};
+/// use cookie_factory::{gen, separated_list, string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
 /// {
-///   let buf = separated_list(string(","), data.iter().map(string))(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(separated_list(string(","), data.iter().map(string)), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 14);
 ///   assert_eq!(buf.len(), 100 - 14);
 /// }
 ///
 /// assert_eq!(&buf[..14], &b"abcd,efgh,ijkl"[..]);
 /// ```
-pub fn separated_list<F, G, I: Write, It>(sep: F, values: It) -> impl SerializeFn<I>
-  where F: SerializeFn<I>,
-        G: SerializeFn<I>,
+pub fn separated_list<F, G, W: Write, It>(sep: F, values: It) -> impl SerializeFn<W>
+  where F: SerializeFn<W>,
+        G: SerializeFn<W>,
         It: Clone + Iterator<Item=G> {
 
-  move |mut out: I| {
+  move |mut out: WriteContext<W>| {
     let mut it = values.clone();
 
     match it.next() {
@@ -371,12 +360,13 @@ pub fn separated_list<F, G, I: Write, It>(sep: F, values: It) -> impl SerializeF
 /// Writes an `u8` to the output
 ///
 /// ```rust
-/// use cookie_factory::be_u8;
+/// use cookie_factory::{gen, be_u8};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_u8(1u8)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_u8(1u8), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 1);
 ///   assert_eq!(buf.len(), 100 - 1);
 /// }
 ///
@@ -385,7 +375,7 @@ pub fn separated_list<F, G, I: Write, It>(sep: F, values: It) -> impl SerializeF
 pub fn be_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
    let len = 1;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_be_bytes()[..])
     }
 }
@@ -393,12 +383,13 @@ pub fn be_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
 /// Writes an `u16` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_u16;
+/// use cookie_factory::{gen, be_u16};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_u16(1u16)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_u16(1u16), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 2);
 ///   assert_eq!(buf.len(), 100 - 2);
 /// }
 ///
@@ -407,7 +398,7 @@ pub fn be_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
 pub fn be_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
    let len = 2;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_be_bytes()[..])
     }
 }
@@ -415,12 +406,13 @@ pub fn be_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
 /// Writes the lower 24 bit of an `u32` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_u24;
+/// use cookie_factory::{gen, be_u24};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_u24(1u32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_u24(1u32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 3);
 ///   assert_eq!(buf.len(), 100 - 3);
 /// }
 ///
@@ -429,7 +421,7 @@ pub fn be_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
 pub fn be_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 3;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_be_bytes()[1..])
     }
 }
@@ -437,12 +429,13 @@ pub fn be_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
 /// Writes an `u32` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_u32;
+/// use cookie_factory::{gen, be_u32};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_u32(1u32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_u32(1u32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -451,7 +444,7 @@ pub fn be_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
 pub fn be_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 4;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_be_bytes()[..])
     }
 }
@@ -459,12 +452,13 @@ pub fn be_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
 /// Writes an `u64` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_u64;
+/// use cookie_factory::{gen, be_u64};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_u64(1u64)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_u64(1u64), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
@@ -473,7 +467,7 @@ pub fn be_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
 pub fn be_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
    let len = 8;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_be_bytes()[..])
     }
 }
@@ -481,12 +475,13 @@ pub fn be_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
 /// Writes an `i8` to the output
 ///
 /// ```rust
-/// use cookie_factory::be_i8;
+/// use cookie_factory::{gen, be_i8};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_i8(1i8)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_i8(1i8), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 1);
 ///   assert_eq!(buf.len(), 100 - 1);
 /// }
 ///
@@ -499,12 +494,13 @@ pub fn be_i8<W: Write>(i: i8) -> impl SerializeFn<W> {
 /// Writes an `i16` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_i16;
+/// use cookie_factory::{gen, be_i16};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_i16(1i16)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_i16(1i16), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 2);
 ///   assert_eq!(buf.len(), 100 - 2);
 /// }
 ///
@@ -517,12 +513,13 @@ pub fn be_i16<W: Write>(i: i16) -> impl SerializeFn<W> {
 /// Writes the lower 24 bit of an `i32` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_i24;
+/// use cookie_factory::{gen, be_i24};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_i24(1i32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_i24(1i32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 3);
 ///   assert_eq!(buf.len(), 100 - 3);
 /// }
 ///
@@ -535,12 +532,13 @@ pub fn be_i24<W: Write>(i: i32) -> impl SerializeFn<W> {
 /// Writes an `i32` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_i32;
+/// use cookie_factory::{gen, be_i32};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_i32(1i32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_i32(1i32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -553,12 +551,13 @@ pub fn be_i32<W: Write>(i: i32) -> impl SerializeFn<W> {
 /// Writes an `i64` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_i64;
+/// use cookie_factory::{gen, be_i64};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_i64(1i64)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_i64(1i64), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
@@ -571,12 +570,13 @@ pub fn be_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
 /// Writes an `f32` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_f32;
+/// use cookie_factory::{gen, be_f32};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_f32(1.0f32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_f32(1.0f32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -589,12 +589,13 @@ pub fn be_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
 /// Writes an `f64` in big endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::be_f64;
+/// use cookie_factory::{gen, be_f64};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = be_f64(1.0f64)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(be_f64(1.0f64), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
@@ -607,12 +608,13 @@ pub fn be_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
 /// Writes an `u8` to the output
 ///
 /// ```rust
-/// use cookie_factory::le_u8;
+/// use cookie_factory::{gen, le_u8};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_u8(1u8)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_u8(1u8), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 1);
 ///   assert_eq!(buf.len(), 100 - 1);
 /// }
 ///
@@ -621,7 +623,7 @@ pub fn be_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
 pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
    let len = 1;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_le_bytes()[..])
     }
 }
@@ -629,12 +631,13 @@ pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
 /// Writes an `u16` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_u16;
+/// use cookie_factory::{gen, le_u16};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_u16(1u16)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_u16(1u16), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 2);
 ///   assert_eq!(buf.len(), 100 - 2);
 /// }
 ///
@@ -643,7 +646,7 @@ pub fn le_u8<W: Write>(i: u8) -> impl SerializeFn<W> {
 pub fn le_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
    let len = 2;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_le_bytes()[..])
     }
 }
@@ -651,12 +654,13 @@ pub fn le_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
 /// Writes the lower 24 bit of an `u32` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_u24;
+/// use cookie_factory::{gen, le_u24};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_u24(1u32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_u24(1u32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 3);
 ///   assert_eq!(buf.len(), 100 - 3);
 /// }
 ///
@@ -665,7 +669,7 @@ pub fn le_u16<W: Write>(i: u16) -> impl SerializeFn<W> {
 pub fn le_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 3;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_le_bytes()[0..3])
     }
 }
@@ -673,12 +677,13 @@ pub fn le_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
 /// Writes an `u32` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_u32;
+/// use cookie_factory::{gen, le_u32};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_u32(1u32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_u32(1u32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -687,7 +692,7 @@ pub fn le_u24<W: Write>(i: u32) -> impl SerializeFn<W> {
 pub fn le_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
    let len = 4;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_le_bytes()[..])
     }
 }
@@ -695,12 +700,13 @@ pub fn le_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
 /// Writes an `u64` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_u64;
+/// use cookie_factory::{gen, le_u64};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_u64(1u64)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_u64(1u64), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
@@ -709,7 +715,7 @@ pub fn le_u32<W: Write>(i: u32) -> impl SerializeFn<W> {
 pub fn le_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
    let len = 8;
 
-    move |mut out: W| {
+    move |mut out: WriteContext<W>| {
         try_write!(out, len, &i.to_le_bytes()[..])
     }
 }
@@ -717,12 +723,13 @@ pub fn le_u64<W: Write>(i: u64) -> impl SerializeFn<W> {
 /// Writes an `i8` to the output
 ///
 /// ```rust
-/// use cookie_factory::le_i8;
+/// use cookie_factory::{gen, le_i8};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_i8(1i8)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_i8(1i8), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 1);
 ///   assert_eq!(buf.len(), 100 - 1);
 /// }
 ///
@@ -735,12 +742,13 @@ pub fn le_i8<W: Write>(i: i8) -> impl SerializeFn<W> {
 /// Writes an `o16` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_i16;
+/// use cookie_factory::{gen, le_i16};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_i16(1i16)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_i16(1i16), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 2);
 ///   assert_eq!(buf.len(), 100 - 2);
 /// }
 ///
@@ -753,12 +761,13 @@ pub fn le_i16<W: Write>(i: i16) -> impl SerializeFn<W> {
 /// Writes the lower 24 bit of an `i32` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_i24;
+/// use cookie_factory::{gen, le_i24};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_i24(1i32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_i24(1i32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 3);
 ///   assert_eq!(buf.len(), 100 - 3);
 /// }
 ///
@@ -771,12 +780,13 @@ pub fn le_i24<W: Write>(i: i32) -> impl SerializeFn<W> {
 /// Writes an `i32` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_i32;
+/// use cookie_factory::{gen, le_i32};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_i32(1i32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_i32(1i32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -789,12 +799,13 @@ pub fn le_i32<W: Write>(i: i32) -> impl SerializeFn<W> {
 /// Writes an `i64` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_i64;
+/// use cookie_factory::{gen, le_i64};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_i64(1i64)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_i64(1i64), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
@@ -807,12 +818,13 @@ pub fn le_i64<W: Write>(i: i64) -> impl SerializeFn<W> {
 /// Writes an `f32` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_f32;
+/// use cookie_factory::{gen, le_f32};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_f32(1.0f32)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_f32(1.0f32), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
@@ -825,12 +837,13 @@ pub fn le_f32<W: Write>(i: f32) -> impl SerializeFn<W> {
 /// Writes an `f64` in little endian byte order to the output
 ///
 /// ```rust
-/// use cookie_factory::le_f64;
+/// use cookie_factory::{gen, le_f64};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = le_f64(1.0f64)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(le_f64(1.0f64), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
 ///
@@ -843,13 +856,14 @@ pub fn le_f64<W: Write>(i: f64) -> impl SerializeFn<W> {
 /// Applies a generator over an iterator of values, and applies the serializers generated
 ///
 /// ```rust
-/// use cookie_factory::{many_ref, string};
+/// use cookie_factory::{gen, many_ref, string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
 /// {
-///   let buf = many_ref(&data, string)(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(many_ref(&data, string), &mut buf[..]).unwrap();
+///   assert_eq!(pos, 12);
 ///   assert_eq!(buf.len(), 100 - 12);
 /// }
 ///
@@ -863,7 +877,7 @@ where
     G: SerializeFn<O>
 {
     let items = items.into_iter();
-    move |mut out: O| {
+    move |mut out: WriteContext<O>| {
         for item in items.clone() {
             out = generator(item)(out)?;
         }
@@ -873,7 +887,7 @@ where
 
 /// Helper trait for the `tuple` combinator
 pub trait Tuple<W> {
-    fn serialize(&self, w: W) -> GenResult<W>;
+    fn serialize(&self, w: WriteContext<W>) -> GenResult<W>;
 }
 
 // Generates all the Tuple impls for tuples of arbitrary sizes based on a list of type
@@ -899,7 +913,7 @@ macro_rules! tuple_trait(
 macro_rules! tuple_trait_impl(
   ($($name:ident),+) => (
     impl<W: Write, $($name: SerializeFn<W>),+> Tuple<W> for ( $($name),+ ) {
-      fn serialize(&self, w: W) -> GenResult<W> {
+      fn serialize(&self, w: WriteContext<W>) -> GenResult<W> {
         tuple_trait_inner!(0, self, w, $($name)+)
       }
     }
@@ -964,23 +978,27 @@ FnM, FnN, FnO, FnP, FnQ, FnR, FnS, FnT, FnU);
 /// Currently tuples up to 20 elements are supported.
 ///
 /// ```rust
-/// use cookie_factory::{tuple, string, be_u16};
+/// use cookie_factory::{gen, tuple, string, be_u16};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = tuple((
-///     string("abcd"),
-///     be_u16(0x20),
-///     string("efgh"),
-///   ))(&mut buf[..]).unwrap();
+///   let (buf, pos) = gen(
+///     tuple((
+///       string("abcd"),
+///       be_u16(0x20),
+///       string("efgh"),
+///     )),
+///     &mut buf[..]
+///   ).unwrap();
+///   assert_eq!(pos, 10);
 ///   assert_eq!(buf.len(), 100 - 10);
 /// }
 ///
 /// assert_eq!(&buf[..10], &b"abcd\x00\x20efgh"[..]);
 /// ```
 pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
-    move |w: W| {
+    move |w: WriteContext<W>| {
         l.serialize(w)
     }
 }
@@ -990,24 +1008,24 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
 /// reserved space.
 ///
 /// ```rust
-/// use cookie_factory::{tuple, back_to_the_buffer, string, be_u8, be_u32, WriteCounter};
+/// use cookie_factory::{gen, gen_simple, tuple, back_to_the_buffer, string, be_u8, be_u32};
 ///
 /// let mut buf = [0; 9];
-/// tuple((
+/// gen_simple(tuple((
 ///     back_to_the_buffer(
 ///         4,
-///         move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-///         move |buf, len| be_u32(*len as u32)(buf)
+///         move |buf| gen(string("test"), buf),
+///         move |buf, len| gen_simple(be_u32(*len as u32), buf)
 ///     ),
 ///     be_u8(42)
-/// ))(&mut buf[..]).unwrap();
+/// )), &mut buf[..]).unwrap();
 /// assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
 /// ```
 pub fn back_to_the_buffer<W: BackToTheBuffer, Tmp, Gen, Before>(reserved: usize, gen: Gen, before: Before) -> impl SerializeFn<W>
-where Gen: Fn(W) -> GenResult<(W, Tmp)>,
-      Before: Fn(W, &Tmp) -> GenResult<W> {
-    move |w: W| {
-        w.reserve_write_use(reserved, &gen, &before).map(|t| t.0)
+where Gen: Fn(WriteContext<W>) -> Result<(WriteContext<W>, Tmp), GenError>,
+      Before: Fn(WriteContext<W>, &Tmp) -> GenResult<W> {
+    move |w: WriteContext<W>| {
+        W::reserve_write_use(w, reserved, &gen, &before).map(|t| t.0)
     }
 }
 
@@ -1022,55 +1040,92 @@ where Gen: Fn(W) -> GenResult<(W, Tmp)>,
 //text lowerhex
 
 impl Skip for &mut [u8] {
-    fn skip(self, len: usize) -> Result<Self, GenError> {
-        if self.len() < len {
-            Err(GenError::BufferTooSmall(len - self.len()))
+    fn skip(s: WriteContext<Self>, len: usize) -> Result<WriteContext<Self>, GenError> {
+        if s.write.len() < len {
+            Err(GenError::BufferTooSmall(len - s.write.len()))
         } else {
-            Ok(&mut self[len..])
+            Ok(WriteContext {
+                write: &mut s.write[len..],
+                position: s.position + len as u64,
+            })
         }
     }
 }
 
 impl Skip for io::Cursor<&mut [u8]> {
-    fn skip(mut self, len: usize) -> Result<Self, GenError> {
-        let remaining = self.get_ref().len().saturating_sub(self.position() as usize);
+    fn skip(mut s: WriteContext<Self>, len: usize) -> GenResult<Self> {
+        let remaining = s.write.get_ref().len().saturating_sub(s.write.position() as usize);
         if remaining < len {
             Err(GenError::BufferTooSmall(len - remaining))
         } else {
-            self.set_position(self.position() + len as u64);
-            Ok(self)
+            let cursor_position = s.write.position();
+            s.write.set_position(cursor_position + len as u64);
+            s.position += len as u64;
+            Ok(s)
         }
     }
 }
 
 impl BackToTheBuffer for &mut [u8] {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
-        let (res, buf) = self.split_at_mut(reserved);
-        let (buf, tmp) = gen(buf)?;
-        let res = before(res, &tmp)?;
-        if !res.is_empty() {
-            return Err(GenError::BufferTooBig(res.len()));
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> {
+        let WriteContext { write: slice, position: original_position } = s;
+
+        let (res, buf) = slice.split_at_mut(reserved);
+        let (new_context, tmp) = gen(
+          WriteContext {
+            write: buf,
+            position: original_position + reserved as u64
+        })?;
+
+        let res = before(
+          WriteContext {
+            write: res,
+            position: original_position
+          },
+          &tmp,
+        )?;
+
+        if !res.write.is_empty() {
+            return Err(GenError::BufferTooBig(res.write.len()));
         }
-        Ok((buf, tmp))
+
+        Ok((new_context, tmp))
     }
 }
 
 #[cfg(feature = "std")]
 impl BackToTheBuffer for Vec<u8> {
-    fn reserve_write_use<Tmp, Gen: Fn(Self) -> GenResult<(Self, Tmp)>, Before: Fn(Self, &Tmp) -> GenResult<Self>>(mut self, reserved: usize, gen: &Gen, before: &Before) -> GenResult<(Self, Tmp)> {
-        let start_len = self.len();
-        self.extend(std::iter::repeat(0).take(reserved));
-        let (mut vec, tmp) = gen(self)?;
-        let tmp_vec = before(Vec::new(), &tmp)?;
-        let tmp_written = tmp_vec.len();
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> {
+        let WriteContext { write: mut vec, position: original_position } = s;
+
+        let start_len = vec.len();
+        vec.extend(std::iter::repeat(0).take(reserved));
+
+        let (mut new_context, tmp) = gen(
+          WriteContext {
+            write: vec,
+            position: original_position + reserved as u64,
+        })?;
+
+        let tmp_context = before(
+          WriteContext {
+            write: Vec::new(),
+            position: original_position,
+          },
+          &tmp,
+        )?;
+
+        let tmp_written = tmp_context.write.len();
         if tmp_written != reserved {
             return Err(GenError::BufferTooBig(reserved - tmp_written));
         }
+
         // FIXME?: find a way to do that without copying
         // Vec::from_raw_parts + core::mem::forget makes it work, but
         // if `before` writes more than `reserved`, realloc will cause troubles
-        vec[start_len..(start_len + reserved)].copy_from_slice(&tmp_vec[..]);
-        Ok((vec, tmp))
+        new_context.write[start_len..(start_len + reserved)].copy_from_slice(&tmp_context.write[..]);
+
+        Ok((new_context, tmp))
     }
 }
 
@@ -1091,7 +1146,7 @@ mod test {
                 string("5678"),
             );
 
-            let cursor = serializer(cursor).unwrap();
+            let cursor = gen_simple(serializer, cursor).unwrap();
             assert_eq!(cursor.position(), 8);
         }
 
@@ -1112,7 +1167,7 @@ mod test {
                 string("0123"),
             ));
 
-            let cursor = serializer(cursor).unwrap();
+            let cursor = gen_simple(serializer, cursor).unwrap();
             assert_eq!(cursor.position(), 12);
         }
 
@@ -1124,9 +1179,8 @@ mod test {
         let mut buf = [0; 8];
         {
             let (len_buf, buf) = buf.split_at_mut(4);
-            let w = WriteCounter::new(buf);
-            let w = string("test")(w).unwrap();
-            be_u32(w.position() as u32)(len_buf).unwrap();
+            let (_, pos) = gen(string("test"), buf).unwrap();
+            gen(be_u32(pos as u32), len_buf).unwrap();
         }
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]);
     }
@@ -1134,12 +1188,20 @@ mod test {
     #[test]
     fn test_back_to_the_buffer() {
         let mut buf = [0; 9];
-        let rest = buf.reserve_write_use(
-            4,
-            &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-            &move |buf, len| be_u32(*len as u32)(buf)
-        ).unwrap().0;
-        be_u8(42)(rest).unwrap();
+
+        let new_buf = gen_simple(
+          tuple((
+            back_to_the_buffer(
+              4,
+              move |buf| gen(string("test"), buf),
+              move |buf, len| gen_simple(be_u32(*len as u32), buf)
+            ),
+            be_u8(42)
+          )),
+          &mut buf[..],
+        ).unwrap();
+
+        assert!(new_buf.is_empty());
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
 
@@ -1147,12 +1209,19 @@ mod test {
     #[test]
     fn test_back_to_the_buffer_vec() {
         let buf = Vec::new();
-        let buf = buf.reserve_write_use(
-            4,
-            &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-            &move |buf, len| be_u32(*len as u32)(buf)
-        ).unwrap().0;
-        let buf = be_u8(42)(buf).unwrap();
+
+        let buf = gen_simple(
+          tuple((
+            back_to_the_buffer(
+              4,
+              move |buf| gen(string("test"), buf),
+              move |buf, len| gen_simple(be_u32(*len as u32), buf)
+            ),
+            be_u8(42)
+          )),
+          buf,
+        ).unwrap();
+
         assert_eq!(&buf[..], &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
     }
 
@@ -1161,12 +1230,17 @@ mod test {
         let mut buf = [0; 9];
         {
             let cursor = io::Cursor::new(&mut buf[..]);
-            let cursor = cursor.reserve_write_use(
-                4,
-                &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-                &move |buf, len| be_u32(*len as u32)(buf)
-            ).unwrap().0;
-            let cursor = be_u8(42)(cursor).unwrap();
+            let cursor = gen_simple(
+              tuple((
+                back_to_the_buffer(
+                  4,
+                  move |buf| gen(string("test"), buf),
+                  move |buf, len| gen_simple(be_u32(*len as u32), buf)
+                ),
+                be_u8(42)
+              )),
+              cursor,
+            ).unwrap();
             assert_eq!(cursor.position(), 9);
         }
         assert_eq!(&buf, &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);
@@ -1177,16 +1251,19 @@ mod test {
         let mut buf = [0; 10];
         {
             let cursor = io::Cursor::new(&mut buf[..]);
-            let cursor = be_u8(64)(cursor).unwrap();
-            let counter = WriteCounter::new(cursor);
-            let counter = counter.reserve_write_use(
-                4,
-                &move |buf| string("test")(WriteCounter::new(buf)).map(|counter| counter.into_inner()),
-                &move |buf, len| be_u32(*len as u32)(buf)
-            ).unwrap().0;
-            let counter = be_u8(42)(counter).unwrap();
-            let (cursor, pos) = counter.into_inner();
-            assert_eq!(pos, 9);
+            let (cursor, pos) = gen(
+              tuple((
+                be_u8(64),
+                back_to_the_buffer(
+                  4,
+                  &move |buf| gen(string("test"), buf),
+                  &move |buf, len: &u64| gen_simple(be_u32(*len as u32), buf)
+                ),
+                be_u8(42),
+              )),
+              cursor,
+            ).unwrap();
+            assert_eq!(pos, 10);
             assert_eq!(cursor.position(), 10);
         }
         assert_eq!(&buf, &[64, 0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]);

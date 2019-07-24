@@ -61,7 +61,7 @@ pub fn gen_object<'a, 'b: 'a, W: Write + 'a>(o: &'b BTreeMap<String, JsonValue>)
 }
 
 pub fn gen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + 'a {
-  move |out: W| {
+  move |out: WriteContext<W>| {
     match g {
       JsonValue::Str(ref s) => gen_str(s)(out),
       JsonValue::Boolean(ref b) => gen_bool(*b)(out),
@@ -89,10 +89,10 @@ fn json_test() {
 
   let mut buffer = [0u8; 8192];
   let sr = gen_json_value(&value);
-  let writer = Cursor::new(&mut buffer[..]);
-  let writer = sr(writer).unwrap();
-  let size = writer.position() as usize;
-  let buffer = writer.into_inner();
+  let cursor = Cursor::new(&mut buffer[..]);
+  let cursor = gen_simple(sr, cursor).unwrap();
+  let size = cursor.position() as usize;
+  let buffer = cursor.into_inner();
 
   println!("result:\n{}", str::from_utf8(&buffer[..size]).unwrap());
   assert_eq!(str::from_utf8(&buffer[..size]).unwrap(),
