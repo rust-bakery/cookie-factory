@@ -116,7 +116,7 @@ pub trait Skip: Write {
 /// Trait for `Write` types that allow skipping and reserving a slice, then writing some data,
 /// then write something in the slice we reserved using the return for our data write.
 pub trait BackToTheBuffer: Write {
-    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> where Self: Sized;
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<WriteContext<Self>, GenError> where Self: Sized;
 }
 
 /// Trait for `Seek` types that want to automatically implement `BackToTheBuffer`
@@ -124,19 +124,19 @@ pub trait Seek: Write + io::Seek {}
 impl Seek for io::Cursor<&mut [u8]> {}
 
 impl<W: Seek> BackToTheBuffer for W {
-    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(mut s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> {
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, Tmp) -> GenResult<Self>>(mut s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<WriteContext<Self>, GenError> {
         let start = s.seek(SeekFrom::Current(0))?;
         let begin = s.seek(SeekFrom::Current(reserved as i64))?;
         let (mut buf, tmp) = gen(s)?;
         let end = buf.seek(SeekFrom::Current(0))?;
         buf.seek(SeekFrom::Start(start))?;
-        let mut buf = before(buf, &tmp)?;
+        let mut buf = before(buf, tmp)?;
         let pos = buf.seek(SeekFrom::Current(0))?;
         if pos != begin {
             return Err(GenError::BufferTooBig((begin - pos) as usize));
         }
         buf.seek(SeekFrom::Start(end))?;
-        Ok((buf, tmp))
+        Ok(buf)
     }
 }
 
@@ -1015,7 +1015,7 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
 ///     back_to_the_buffer(
 ///         4,
 ///         move |buf| gen(string("test"), buf),
-///         move |buf, len| gen_simple(be_u32(*len as u32), buf)
+///         move |buf, len| gen_simple(be_u32(len as u32), buf)
 ///     ),
 ///     be_u8(42)
 /// )), &mut buf[..]).unwrap();
@@ -1023,9 +1023,9 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
 /// ```
 pub fn back_to_the_buffer<W: BackToTheBuffer, Tmp, Gen, Before>(reserved: usize, gen: Gen, before: Before) -> impl SerializeFn<W>
 where Gen: Fn(WriteContext<W>) -> Result<(WriteContext<W>, Tmp), GenError>,
-      Before: Fn(WriteContext<W>, &Tmp) -> GenResult<W> {
+      Before: Fn(WriteContext<W>, Tmp) -> GenResult<W> {
     move |w: WriteContext<W>| {
-        W::reserve_write_use(w, reserved, &gen, &before).map(|t| t.0)
+        W::reserve_write_use(w, reserved, &gen, &before)
     }
 }
 
@@ -1067,7 +1067,7 @@ impl Skip for io::Cursor<&mut [u8]> {
 }
 
 impl BackToTheBuffer for &mut [u8] {
-    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> {
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<WriteContext<Self>, GenError> {
         let WriteContext { write: slice, position: original_position } = s;
 
         let (res, buf) = slice.split_at_mut(reserved);
@@ -1082,20 +1082,20 @@ impl BackToTheBuffer for &mut [u8] {
             write: res,
             position: original_position
           },
-          &tmp,
+          tmp,
         )?;
 
         if !res.write.is_empty() {
             return Err(GenError::BufferTooBig(res.write.len()));
         }
 
-        Ok((new_context, tmp))
+        Ok(new_context)
     }
 }
 
 #[cfg(feature = "std")]
 impl BackToTheBuffer for Vec<u8> {
-    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, &Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<(WriteContext<Self>, Tmp), GenError> {
+    fn reserve_write_use<Tmp, Gen: Fn(WriteContext<Self>) -> Result<(WriteContext<Self>, Tmp), GenError>, Before: Fn(WriteContext<Self>, Tmp) -> GenResult<Self>>(s: WriteContext<Self>, reserved: usize, gen: &Gen, before: &Before) -> Result<WriteContext<Self>, GenError> {
         let WriteContext { write: mut vec, position: original_position } = s;
 
         let start_len = vec.len();
@@ -1112,7 +1112,7 @@ impl BackToTheBuffer for Vec<u8> {
             write: Vec::new(),
             position: original_position,
           },
-          &tmp,
+          tmp,
         )?;
 
         let tmp_written = tmp_context.write.len();
@@ -1125,7 +1125,7 @@ impl BackToTheBuffer for Vec<u8> {
         // if `before` writes more than `reserved`, realloc will cause troubles
         new_context.write[start_len..(start_len + reserved)].copy_from_slice(&tmp_context.write[..]);
 
-        Ok((new_context, tmp))
+        Ok(new_context)
     }
 }
 
@@ -1194,7 +1194,7 @@ mod test {
             back_to_the_buffer(
               4,
               move |buf| gen(string("test"), buf),
-              move |buf, len| gen_simple(be_u32(*len as u32), buf)
+              move |buf, len| gen_simple(be_u32(len as u32), buf)
             ),
             be_u8(42)
           )),
@@ -1215,7 +1215,7 @@ mod test {
             back_to_the_buffer(
               4,
               move |buf| gen(string("test"), buf),
-              move |buf, len| gen_simple(be_u32(*len as u32), buf)
+              move |buf, len| gen_simple(be_u32(len as u32), buf)
             ),
             be_u8(42)
           )),
@@ -1235,7 +1235,7 @@ mod test {
                 back_to_the_buffer(
                   4,
                   move |buf| gen(string("test"), buf),
-                  move |buf, len| gen_simple(be_u32(*len as u32), buf)
+                  move |buf, len| gen_simple(be_u32(len as u32), buf)
                 ),
                 be_u8(42)
               )),
@@ -1257,7 +1257,7 @@ mod test {
                 back_to_the_buffer(
                   4,
                   &move |buf| gen(string("test"), buf),
-                  &move |buf, len: &u64| gen_simple(be_u32(*len as u32), buf)
+                  &move |buf, len| gen_simple(be_u32(len as u32), buf)
                 ),
                 be_u8(42),
               )),
