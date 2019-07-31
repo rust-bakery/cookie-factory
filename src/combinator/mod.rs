@@ -1164,7 +1164,7 @@ mod test {
             let serializer = tuple((
                 string("1234"),
                 string("5678"),
-                string("0123"),
+                tuple((string("0123"))),
             ));
 
             let cursor = gen_simple(serializer, cursor).unwrap();
