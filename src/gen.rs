@@ -1,6 +1,6 @@
 //! Generator combinator, based on [nom](https://github.com/Geal/nom)'s syntax.
 
-use crate::combinators::*;
+use crate::combinator::*;
 
 use crate::lib::std::{fmt, io};
 

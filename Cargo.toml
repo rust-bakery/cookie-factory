@@ -17,7 +17,7 @@ include = [
   "README.md",
   ".gitignore",
   "src/*.rs",
-  "src/combinators/*.rs",
+  "src/combinator/*.rs",
   "example/*.rs"
 ]
 

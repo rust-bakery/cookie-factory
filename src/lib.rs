@@ -122,6 +122,6 @@ pub mod lib {
 pub use crate::gen::*;
 #[macro_use] mod gen;
 
-mod combinators;
-pub use crate::combinators::*;
+mod combinator;
+pub use crate::combinator::*;
 
