@@ -1,3 +1,4 @@
+//! bytes and numbers related serialization functions
 use crate::gen::GenError;
 use crate::internal::{SerializeFn, WriteContext};
 use crate::lib::std::io::Write;

@@ -1,3 +1,5 @@
+//! main structures and traits used to build serializers
+//!
 use crate::gen::GenError;
 use crate::lib::std::io::{self, Seek as _, SeekFrom, Write};
 

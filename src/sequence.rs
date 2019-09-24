@@ -1,3 +1,4 @@
+//! serializers working a sequence of objects (pairs, tuples, etc)
 use crate::internal::{GenResult, SerializeFn, WriteContext};
 use crate::lib::std::io::Write;
 

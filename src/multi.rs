@@ -1,3 +1,4 @@
+//! serializers working on a list of elements (vectors, iterators, etc)
 use crate::internal::{SerializeFn, WriteContext};
 use crate::lib::std::io::Write;
 
