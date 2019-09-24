@@ -14,29 +14,33 @@ mod io_compat;
 
 /// lib module necessary to reexport what we need from std in `no_std` mode
 pub mod lib {
-  #[cfg(feature = "std")]
-  pub mod std {
-    pub mod io {
-      pub use std::io::{Write, Result, Error, Cursor, Seek, SeekFrom};
+    #[cfg(feature = "std")]
+    pub mod std {
+        pub mod io {
+            pub use std::io::{Cursor, Error, Result, Seek, SeekFrom, Write};
+        }
+        pub use std::{cmp, fmt, iter, mem, result, slice};
     }
-    pub use std::{cmp, fmt, iter, mem, result, slice};
-  }
 
-  #[cfg(not(feature = "std"))]
-  pub mod std {
-    pub use core::{cmp, iter, mem, result, slice};
-    #[macro_use]
-    pub use core::fmt;
+    #[cfg(not(feature = "std"))]
+    pub mod std {
+        pub use core::{cmp, iter, mem, result, slice};
+        #[macro_use]
+        pub use core::fmt;
 
-    pub mod io {
-      pub use io_compat::*;
+        pub mod io {
+            pub use io_compat::*;
+        }
     }
-  }
 }
 
 pub use crate::gen::*;
-#[macro_use] mod gen;
+#[macro_use]
+mod gen;
 
-mod combinator;
-pub use crate::combinator::*;
-
+mod internal;
+pub use internal::*;
+pub mod bytes;
+pub mod combinator;
+pub mod multi;
+pub mod sequence;
