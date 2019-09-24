@@ -1,4 +1,3 @@
-use crate::gen::GenError;
 use crate::internal::*;
 use crate::lib::std::io::Write;
 

@@ -1,6 +1,5 @@
 //! bytes and numbers related serialization functions
-use crate::gen::GenError;
-use crate::internal::{SerializeFn, WriteContext};
+use crate::internal::{SerializeFn, WriteContext, GenError};
 use crate::lib::std::io::Write;
 
 macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (

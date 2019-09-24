@@ -1,13 +1,45 @@
 //! main structures and traits used to build serializers
-//!
-use crate::gen::GenError;
-use crate::lib::std::io::{self, Seek as _, SeekFrom, Write};
+use crate::lib::std::{fmt, io::{self, Seek as _, SeekFrom, Write}};
 
 /// Holds the result of serializing functions
 ///
 /// The `Ok` case returns the `Write` used for writing, in the `Err` case an instance of
 /// `cookie_factory::GenError` is returned.
 pub type GenResult<W> = Result<WriteContext<W>, GenError>;
+
+
+/// Base type for generator errors
+#[derive(Debug)]
+pub enum GenError {
+    /// Input buffer is too small. Argument is the maximum index that is required
+    BufferTooSmall(usize),
+    /// We expected to fill the whole buffer but there is some space left
+    BufferTooBig(usize),
+    /// Operation asked for accessing an invalid index
+    InvalidOffset,
+    /// IoError returned by Write
+    IoError(io::Error),
+
+    /// Allocated for custom errors
+    CustomError(u32),
+    /// Generator or function not yet implemented
+    NotYetImplemented,
+}
+
+impl fmt::Display for GenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for GenError {}
+
+impl From<io::Error> for GenError {
+    fn from(err: io::Error) -> Self {
+        GenError::IoError(err)
+    }
+}
 
 /// Trait for serializing functions
 ///
