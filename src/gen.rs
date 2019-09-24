@@ -1,4 +1,4 @@
-//! Generator combinator, based on [nom](https://github.com/Geal/nom)'s syntax.
+//! legacy serializers, kept for backwards compatibility from previous cookie factory versions
 
 use crate::bytes::*;
 use crate::internal::*;
@@ -94,35 +94,35 @@ macro_rules! gen_align(
 /// Does not modify the output buffer, but increments the output index.
 #[macro_export]
 macro_rules! gen_skip(
-    ($i:expr, $val:expr) => ( legacy_wrap($crate::combinator::skip($val as usize), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::combinator::skip($val as usize), $i) );
 );
 
 /// `gen_be_u8!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 1 byte integer.
 #[macro_export]
 macro_rules! gen_be_u8(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_u8($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_u8($val), $i) );
 );
 
 /// `gen_be_u16!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 2 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u16(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_u16($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_u16($val), $i) );
 );
 
 /// `gen_be_u24!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 3 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u24(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_u24($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_u24($val), $i) );
 );
 
 /// `gen_be_u32!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 4 bytes integer (using big-endian order).
 #[macro_export]
 macro_rules! gen_be_u32(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_u32($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_u32($val), $i) );
 );
 
 /// `gen_be_u64!(I, u8) => I -> Result<I,E>`
@@ -132,84 +132,84 @@ macro_rules! gen_be_u32(
 /// ```
 #[macro_export]
 macro_rules! gen_be_u64(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_u64($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_u64($val), $i) );
 );
 
 /// `gen_be_i8!(I, i8) => I -> Result<I,E>`
 /// Write a signed 1 byte integer.
 #[macro_export]
 macro_rules! gen_be_i8(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_i8($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_i8($val), $i) );
 );
 
 /// `gen_be_i16!(I, i16) => I -> Result<I,E>`
 /// Write a signed 2 byte integer.
 #[macro_export]
 macro_rules! gen_be_i16(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_i16($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_i16($val), $i) );
 );
 
 /// `gen_be_i24!(I, i24) => I -> Result<I,E>`
 /// Write a signed 3 byte integer.
 #[macro_export]
 macro_rules! gen_be_i24(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_i24($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_i24($val), $i) );
 );
 
 /// `gen_be_i32!(I, i32) => I -> Result<I,E>`
 /// Write a signed 4 byte integer.
 #[macro_export]
 macro_rules! gen_be_i32(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_i32($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_i32($val), $i) );
 );
 
 /// `gen_be_i64!(I, i64) => I -> Result<I,E>`
 /// Write a signed 8 byte integer.
 #[macro_export]
 macro_rules! gen_be_i64(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_i64($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_i64($val), $i) );
 );
 
 /// `gen_be_f32!(I, f32) => I -> Result<I,E>`
 /// Write a 4 byte float.
 #[macro_export]
 macro_rules! gen_be_f32(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_f32($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_f32($val), $i) );
 );
 
 /// `gen_be_f64!(I, f64) => I -> Result<I,E>`
 /// Write a 8 byte float.
 #[macro_export]
 macro_rules! gen_be_f64(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::be_f64($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::be_f64($val), $i) );
 );
 
 /// `gen_le_u8!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 1 byte integer.
 #[macro_export]
 macro_rules! gen_le_u8(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_u8($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_u8($val), $i) );
 );
 
 /// `gen_le_u16!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 2 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u16(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_u16($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_u16($val), $i) );
 );
 
 /// `gen_le_u24!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 3 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u24(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_u24($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_u24($val), $i) );
 );
 
 /// `gen_le_u32!(I, u8) => I -> Result<I,E>`
 /// Write an unsigned 4 bytes integer (using little-endian order).
 #[macro_export]
 macro_rules! gen_le_u32(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_u32($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_u32($val), $i) );
 );
 
 /// `gen_le_u64!(I, u8) => I -> Result<I,E>`
@@ -219,56 +219,56 @@ macro_rules! gen_le_u32(
 /// ```
 #[macro_export]
 macro_rules! gen_le_u64(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_u64($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_u64($val), $i) );
 );
 
 /// `gen_le_i8!(I, i8) => I -> Result<I,E>`
 /// Write a signed 1 byte integer.
 #[macro_export]
 macro_rules! gen_le_i8(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_i8($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_i8($val), $i) );
 );
 
 /// `gen_le_i16!(I, i16) => I -> Result<I,E>`
 /// Write a signed 2 byte integer.
 #[macro_export]
 macro_rules! gen_le_i16(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_i16($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_i16($val), $i) );
 );
 
 /// `gen_le_i24!(I, i24) => I -> Result<I,E>`
 /// Write a signed 3 byte integer.
 #[macro_export]
 macro_rules! gen_le_i24(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_i24($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_i24($val), $i) );
 );
 
 /// `gen_le_i32!(I, i32) => I -> Result<I,E>`
 /// Write a signed 4 byte integer.
 #[macro_export]
 macro_rules! gen_le_i32(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_i32($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_i32($val), $i) );
 );
 
 /// `gen_le_i64!(I, i64) => I -> Result<I,E>`
 /// Write a signed 8 byte integer.
 #[macro_export]
 macro_rules! gen_le_i64(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_i64($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_i64($val), $i) );
 );
 
 /// `gen_le_f32!(I, f32) => I -> Result<I,E>`
 /// Write a 4 byte float.
 #[macro_export]
 macro_rules! gen_le_f32(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_f32($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_f32($val), $i) );
 );
 
 /// `gen_le_f64!(I, f64) => I -> Result<I,E>`
 /// Write a 8 byte float.
 #[macro_export]
 macro_rules! gen_le_f64(
-    ($i:expr, $val:expr) => ( $crate::legacy_wrap($crate::bytes::le_f64($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::bytes::le_f64($val), $i) );
 );
 
 /// `gen_copy!(I, &[u8], u8) => I -> Result<I,E>`
@@ -291,7 +291,7 @@ macro_rules! gen_copy(
 /// Writes a slice, copying it entirely to the output buffer.
 #[macro_export]
 macro_rules! gen_slice(
-    ($i:expr, $val:expr) => ( legacy_wrap($crate::combinator::slice($val), $i) );
+    ($i:expr, $val:expr) => ( $crate::gen::legacy_wrap($crate::combinator::slice($val), $i) );
 );
 
 #[macro_export]
@@ -314,7 +314,7 @@ macro_rules! gen_length_slice(
 ///
 /// ```rust,no_run
 /// # #[macro_use] extern crate cookie_factory;
-/// # use cookie_factory::*;
+/// # use cookie_factory::{*, gen::set_be_u8};
 /// # fn main() {
 /// // will make a generator setting an u8
 /// fn gen0(x:(&mut [u8],usize),v:u8) -> Result<(&mut [u8],usize),GenError> {

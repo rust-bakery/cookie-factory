@@ -34,9 +34,8 @@ pub mod lib {
     }
 }
 
-pub use crate::gen::*;
 #[macro_use]
-mod gen;
+pub mod gen;
 
 mod internal;
 pub use internal::*;

@@ -1,3 +1,4 @@
+//! basic serializers
 use crate::internal::*;
 use crate::lib::std::io::Write;
 
