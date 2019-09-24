@@ -890,6 +890,12 @@ pub trait Tuple<W> {
     fn serialize(&self, w: WriteContext<W>) -> GenResult<W>;
 }
 
+impl <W:Write, A: SerializeFn<W>> Tuple<W> for (A,) {
+  fn serialize(&self, w: WriteContext<W>) -> GenResult<W> {
+    self.0(w)
+  }
+}
+
 // Generates all the Tuple impls for tuples of arbitrary sizes based on a list of type
 // parameters like FnA FnB FnC. It would generate the impl then for (FnA, FnB)
 // and (FnA, FnB, FnC).
@@ -1164,7 +1170,7 @@ mod test {
             let serializer = tuple((
                 string("1234"),
                 string("5678"),
-                string("0123"),
+                tuple((string("0123"),)),
             ));
 
             let cursor = gen_simple(serializer, cursor).unwrap();
