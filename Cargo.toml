@@ -1,6 +1,6 @@
 [package]
 name = "cookie-factory"
-version = "0.3.0-beta5"
+version = "0.3.0"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Pierre Chifflier <chifflier@wzdftpd.net>"]
 license = "MIT"
 repository = "https://github.com/rust-bakery/cookie-factory"
