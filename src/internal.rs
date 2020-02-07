@@ -141,7 +141,7 @@ pub fn gen_simple<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<W, GenError
 
 /// Trait for `Write` types that allow skipping over the data
 pub trait Skip: Write {
-    fn skip(s: WriteContext<Self>, s: usize) -> GenResult<Self>
+    fn skip(s: WriteContext<Self>, sz: usize) -> GenResult<Self>
     where
         Self: Sized;
 }
