@@ -47,6 +47,11 @@ name = "http"
 required-features = ["std"]
 path = "examples/http.rs"
 
+[[example]]
+name = "cursor"
+required-features = ["std"]
+path = "examples/cursor.rs"
+
 [[test]]
 name = "http"
 required-features = ["std"]
