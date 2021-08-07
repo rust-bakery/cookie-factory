@@ -43,3 +43,5 @@ pub mod bytes;
 pub mod combinator;
 pub mod multi;
 pub mod sequence;
+#[cfg(feature = "async")]
+pub mod async_bufwriter;

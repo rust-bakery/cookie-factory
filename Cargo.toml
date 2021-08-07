@@ -22,10 +22,12 @@ include = [
 ]
 
 [features]
-default = ["std"]
+default = ["std", "async"]
 std = []
+async = ["futures"]
 
 [dev-dependencies]
+async-std = { version = "1.9.0", features = ["attributes"] }
 maplit = "^1.0"
 
 [profile.bench]
@@ -48,6 +50,11 @@ required-features = ["std"]
 path = "examples/http.rs"
 
 [[example]]
+name = "async_http"
+required-features = ["std", "async"]
+path = "examples/async_http.rs"
+
+[[example]]
 name = "cursor"
 required-features = ["std"]
 path = "examples/cursor.rs"
@@ -68,3 +75,6 @@ path = "tests/http.rs"
 [badges]
 travis-ci = { repository = "Geal/cookie-factory" }
 maintenance = { status = "actively-developed" }
+
+[dependencies]
+futures = { version = "0.3.16", optional = true }
