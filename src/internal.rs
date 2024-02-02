@@ -1,12 +1,14 @@
 //! main structures and traits used to build serializers
-use crate::lib::std::{fmt, io::{self, Seek as _, SeekFrom, Write}};
+use crate::lib::std::{
+    fmt,
+    io::{self, Seek as _, SeekFrom, Write},
+};
 
 /// Holds the result of serializing functions
 ///
 /// The `Ok` case returns the `Write` used for writing, in the `Err` case an instance of
 /// `cookie_factory::GenError` is returned.
 pub type GenResult<W> = Result<WriteContext<W>, GenError>;
-
 
 /// Base type for generator errors
 #[derive(Debug)]

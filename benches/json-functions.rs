@@ -10,10 +10,7 @@ use std::str;
 use test::Bencher;
 
 use cookie_factory::*;
-use cookie_factory::{
-    combinator::string,
-    multi::separated_list,
-};
+use cookie_factory::{combinator::string, multi::separated_list};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum JsonValue {
