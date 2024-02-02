@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: cookie-factory
+Upstream-Contact: Geoffroy Couprie <geo.couprie@gmail.com> 
+Source: https://github.com/rust-bakery/cookie-factory
+
+Files: *
+Copyright: 2017-2023 Geoffroy Couprie
+License: MIT
