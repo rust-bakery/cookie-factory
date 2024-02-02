@@ -174,7 +174,7 @@ mod test {
         }
         assert_eq!(
             &buf,
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]
+            &[0, 0, 0, 4, b't', b'e', b's', b't']
         );
     }
 
@@ -198,7 +198,7 @@ mod test {
         assert!(new_buf.is_empty());
         assert_eq!(
             &buf,
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
+            &[0, 0, 0, 4, b't', b'e', b's', b't', 42]
         );
     }
 
@@ -222,7 +222,7 @@ mod test {
 
         assert_eq!(
             &buf[..],
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
+            &[0, 0, 0, 4, b't', b'e', b's', b't', 42]
         );
     }
 
@@ -247,7 +247,7 @@ mod test {
         }
         assert_eq!(
             &buf,
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
+            &[0, 0, 0, 4, b't', b'e', b's', b't', 42]
         );
     }
 
@@ -274,7 +274,7 @@ mod test {
         }
         assert_eq!(
             &buf,
-            &[64, 0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
+            &[64, 0, 0, 0, 4, b't', b'e', b's', b't', 42]
         );
     }
 }

@@ -5,7 +5,7 @@ fn slice1(out: &mut [u8]) -> Result<&mut [u8], u32> {
     if out.len() < data.len() {
         Err(42)
     } else {
-        (&mut out[..data.len()]).copy_from_slice(data);
+        out[..data.len()].copy_from_slice(data);
         Ok(&mut out[data.len()..])
     }
 }
