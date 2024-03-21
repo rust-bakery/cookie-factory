@@ -14,8 +14,7 @@ impl<W: AsyncWrite + Unpin> AsyncBufWriter<W> {
     }
 
     pub fn with_capacity(capacity: usize, inner: W) -> AsyncBufWriter<W> {
-        let mut buf = Vec::with_capacity(capacity);
-        buf.extend(std::iter::repeat(0).take(capacity));
+        let buf = vec![0; capacity];
         AsyncBufWriter { inner, buf, pos: 0 }
     }
 

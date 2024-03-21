@@ -87,7 +87,7 @@ impl<W: Write> Write for WriteContext<W> {
 
 impl<W: Seek> io::Seek for WriteContext<W> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let old_pos = self.write.seek(SeekFrom::Current(0))?;
+        let old_pos = self.write.stream_position()?;
         let new_pos = self.write.seek(pos)?;
         if new_pos >= old_pos {
             self.position += new_pos - old_pos;
@@ -178,13 +178,13 @@ impl<W: Seek> BackToTheBuffer for W {
         gen: &Gen,
         before: &Before,
     ) -> Result<WriteContext<Self>, GenError> {
-        let start = s.seek(SeekFrom::Current(0))?;
+        let start = s.stream_position()?;
         let begin = s.seek(SeekFrom::Current(reserved as i64))?;
         let (mut buf, tmp) = gen(s)?;
-        let end = buf.seek(SeekFrom::Current(0))?;
+        let end = buf.stream_position()?;
         buf.seek(SeekFrom::Start(start))?;
         let mut buf = before(buf, tmp)?;
-        let pos = buf.seek(SeekFrom::Current(0))?;
+        let pos = buf.stream_position()?;
         if pos != begin {
             return Err(GenError::BufferTooBig((begin - pos) as usize));
         }
