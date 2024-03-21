@@ -172,10 +172,7 @@ mod test {
             let (_, pos) = gen(string("test"), buf).unwrap();
             gen(be_u32(pos as u32), len_buf).unwrap();
         }
-        assert_eq!(
-            &buf,
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8]
-        );
+        assert_eq!(&buf, &[0, 0, 0, 4, b't', b'e', b's', b't']);
     }
 
     #[test]
@@ -196,10 +193,7 @@ mod test {
         .unwrap();
 
         assert!(new_buf.is_empty());
-        assert_eq!(
-            &buf,
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
-        );
+        assert_eq!(&buf, &[0, 0, 0, 4, b't', b'e', b's', b't', 42]);
     }
 
     #[cfg(feature = "std")]
@@ -220,10 +214,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(
-            &buf[..],
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
-        );
+        assert_eq!(&buf[..], &[0, 0, 0, 4, b't', b'e', b's', b't', 42]);
     }
 
     #[test]
@@ -245,10 +236,7 @@ mod test {
             .unwrap();
             assert_eq!(cursor.position(), 9);
         }
-        assert_eq!(
-            &buf,
-            &[0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
-        );
+        assert_eq!(&buf, &[0, 0, 0, 4, b't', b'e', b's', b't', 42]);
     }
 
     #[test]
@@ -272,9 +260,6 @@ mod test {
             assert_eq!(pos, 10);
             assert_eq!(cursor.position(), 10);
         }
-        assert_eq!(
-            &buf,
-            &[64, 0, 0, 0, 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 42]
-        );
+        assert_eq!(&buf, &[64, 0, 0, 0, 4, b't', b'e', b's', b't', 42]);
     }
 }

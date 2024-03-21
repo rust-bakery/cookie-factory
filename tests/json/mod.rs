@@ -44,7 +44,7 @@ pub fn gen_array<'a, 'b: 'a, W: Write + 'a>(arr: &'b [JsonValue]) -> impl Serial
 pub fn gen_key_value<'a, 'b: 'a, W: Write + 'a>(
     kv: (&'b String, &'b JsonValue),
 ) -> impl SerializeFn<W> + 'a {
-    tuple((gen_str(kv.0), string(":"), gen_json_value(&kv.1)))
+    tuple((gen_str(kv.0), string(":"), gen_json_value(kv.1)))
 }
 
 pub fn gen_object<'a, 'b: 'a, W: Write + 'a>(
@@ -57,7 +57,7 @@ pub fn gen_object<'a, 'b: 'a, W: Write + 'a>(
     ))
 }
 
-pub fn gen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + 'a {
+pub fn gen_json_value<W: Write>(g: &JsonValue) -> impl SerializeFn<W> + '_ {
     move |out: WriteContext<W>| match g {
         JsonValue::Str(ref s) => gen_str(s)(out),
         JsonValue::Boolean(ref b) => gen_bool(*b)(out),

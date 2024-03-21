@@ -1,0 +1,258 @@
+name: cookie-factory
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/**'
+      - 'Cargo.toml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - '.github/**'
+      - 'Cargo.toml'
+
+jobs:
+  reuse:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: REUSE Compliance Check
+      uses: fsfe/reuse-action@v2
+
+  clippy-rustfmt:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: clippy, rustfmt
+
+    - name: Run rustfmt
+      run:
+        cargo fmt --all -- --check --verbose
+
+    - name: Run cargo clippy
+      uses: clechasseur/rs-clippy-check@v3
+      with:
+        args: --all -- -D warnings
+
+  build:
+
+    needs: [reuse, clippy-rustfmt]
+
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Build
+      run: cargo build --verbose
+
+  docs:
+
+    needs: [reuse, clippy-rustfmt]
+
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Generate docs
+      run: cargo doc --verbose --no-deps
+
+################################## CODE COVERAGE LAYER ##################################
+
+  code-coverage-ubuntu:
+    needs: [build, docs]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install grcov
+      env:
+        GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
+        GRCOV_VERSION: v0.8.13
+      run: |
+        curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+        tar xj -C $HOME/.cargo/bin
+
+    - name: Install llvm-tools-preview
+      run: |
+        rustup component add llvm-tools-preview
+
+    # Not necessary on a newly created image, but strictly advised
+    - name: Run cargo clean
+      run: |
+        cargo clean
+
+    - name: Run tests
+      env:
+        RUSTFLAGS: "-Cinstrument-coverage"
+        LLVM_PROFILE_FILE: "cookie-factory-%p-%m.profraw"
+      run: |
+        cargo test --verbose
+
+    - name: Get coverage data for codecov
+      run: |
+        grcov . --binary-path ./target/debug/ -s . -t lcov --branch \
+              --ignore-not-existing --ignore "/*" --ignore "../*" -o lcov.info
+
+    - name: Codecov upload
+      uses: codecov/codecov-action@v4
+      with:
+        files: lcov.info
+
+  audit-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check dependencies changes
+      uses: dorny/paths-filter@v3
+      id: changes
+      with:
+        filters: |
+          cargo:
+            - 'Cargo.toml'
+
+    - name: Run cargo-audit
+      if: steps.changes.outputs.cargo == 'true'
+      uses: actions-rs/audit-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  deny-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check dependencies changes
+      uses: dorny/paths-filter@v3
+      id: changes
+      with:
+        filters: |
+          cargo:
+            - 'Cargo.toml'
+
+    - name: Install Rust stable
+      if: steps.changes.outputs.cargo == 'true'
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install cargo-deny
+      if: steps.changes.outputs.cargo == 'true'
+      env:
+        DENY_LINK: https://github.com/EmbarkStudios/cargo-deny/releases/download
+        DENY_VERSION: 0.13.7
+      run: |
+        curl -L "$DENY_LINK/$DENY_VERSION/cargo-deny-$DENY_VERSION-x86_64-unknown-linux-musl.tar.gz" |
+        tar xz -C $HOME/.cargo/bin --strip-components 1
+
+    - name: Run cargo-deny
+      if: steps.changes.outputs.cargo == 'true'
+      run: |
+        cargo deny init
+        cargo deny check bans
+        # cargo deny check licenses
+
+  udeps-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check dependencies changes
+      uses: dorny/paths-filter@v3
+      id: changes
+      with:
+        filters: |
+          cargo:
+            - 'Cargo.toml'
+
+    - name: Install Rust nightly
+      if: steps.changes.outputs.cargo == 'true'
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+
+    - name: Install cargo-udeps
+      if: steps.changes.outputs.cargo == 'true'
+      env:
+        UDEPS_LINK: https://github.com/est31/cargo-udeps/releases/download
+        UDEPS_VERSION: v0.1.35
+      run: |
+        curl -L "$UDEPS_LINK/$UDEPS_VERSION/cargo-udeps-$UDEPS_VERSION-x86_64-unknown-linux-gnu.tar.gz" |
+        tar xz -C $HOME/.cargo/bin --strip-components 2
+
+    - name: Run cargo-udeps
+      if: steps.changes.outputs.cargo == 'true'
+      run: |
+        cargo +nightly udeps --all-targets
+
+  careful-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rust-src
+
+    - name: Install cargo-careful
+      env:
+        CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
+        CAREFUL_VERSION: 0.3.4
+      run: |
+        curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
+        --output $HOME/.cargo/bin/cargo-careful
+        chmod +x $HOME/.cargo/bin/cargo-careful
+
+    - name: Run cargo-careful
+      run: |
+        cargo +nightly careful test
+        # cargo +nightly careful run
