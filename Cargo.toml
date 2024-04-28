@@ -24,7 +24,7 @@ include = [
 [features]
 default = ["std", "async"]
 std = []
-async = ["futures"]
+async = ["futures-io", "futures-util"]
 
 [dev-dependencies]
 async-std = { version = "1.9.0", features = ["attributes"] }
@@ -77,4 +77,5 @@ travis-ci = { repository = "Geal/cookie-factory" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-futures = { version = "0.3.16", optional = true }
+futures-io = { version = "0.3.30", optional = true }
+futures-util = { version = "0.3.30", optional = true, features = ["io"]}
