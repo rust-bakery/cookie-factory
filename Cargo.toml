@@ -3,6 +3,7 @@ name = "cookie-factory"
 version = "0.3.3"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Pierre Chifflier <chifflier@wzdftpd.net>"]
 license = "MIT"
+license-file = "LICENSES/MIT.txt"
 repository = "https://github.com/rust-bakery/cookie-factory"
 readme = "README.md"
 documentation = "http://docs.rs/cookie-factory"
