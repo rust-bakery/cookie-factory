@@ -77,5 +77,5 @@ travis-ci = { repository = "Geal/cookie-factory" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-futures-io = { version = "0.3.30", optional = true }
-futures-util = { version = "0.3.30", optional = true, features = ["io"]}
+futures-io = { version = "0.3.31", optional = true }
+futures-util = { version = "0.3.31", optional = true, features = ["io"]}
