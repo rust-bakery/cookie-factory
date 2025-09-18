@@ -31,7 +31,7 @@ pub fn gen_str<'a, 'b: 'a, W: Write>(s: &'b str) -> impl SerializeFn<W> + 'a {
 }
 
 #[inline(always)]
-pub fn gen_bool<'a, W: Write>(b: bool) -> impl SerializeFn<W> {
+pub fn gen_bool<W: Write>(b: bool) -> impl SerializeFn<W> {
     if b {
         string("true")
     } else {
@@ -40,7 +40,7 @@ pub fn gen_bool<'a, W: Write>(b: bool) -> impl SerializeFn<W> {
 }
 
 #[inline(always)]
-pub fn gen_num<'a, W: Write>(_b: f64) -> impl SerializeFn<W> {
+pub fn gen_num<W: Write>(_b: f64) -> impl SerializeFn<W> {
     /*move |out: &'a mut [u8]| {
       let s = format!("{}", b);
       string(s)(out)
