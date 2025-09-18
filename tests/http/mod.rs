@@ -1,3 +1,5 @@
+// this file is provided as example, so allow unused functions
+#![allow(dead_code)]
 use std::io::Write;
 use std::str;
 

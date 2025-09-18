@@ -41,9 +41,7 @@ mod tests {
                     value: "Close",
                 },
             ]
-            .iter()
-            .cloned()
-            .collect(),
+            .to_vec(),
             body: b"Hello, world!",
         };
 
@@ -82,9 +80,7 @@ mod macros {
                     value: "Close",
                 },
             ]
-            .iter()
-            .cloned()
-            .collect(),
+            .to_vec(),
             body: b"Hello, world!",
         };
 
@@ -133,9 +129,7 @@ mod functions {
                     value: "Close",
                 },
             ]
-            .iter()
-            .cloned()
-            .collect(),
+            .to_vec(),
             body: b"Hello, world!",
         };
 

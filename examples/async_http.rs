@@ -33,9 +33,7 @@ async fn main() {
                 value: "Close",
             },
         ]
-        .iter()
-        .cloned()
-        .collect(),
+        .to_vec(),
         body: b"Hello, world!",
     };
 
