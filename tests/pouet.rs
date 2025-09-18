@@ -1,4 +1,4 @@
-use std::iter::repeat;
+use std::iter::repeat_n;
 
 fn slice1(out: &mut [u8]) -> Result<&mut [u8], u32> {
     let data = &b"pouet"[..];
@@ -11,8 +11,8 @@ fn slice1(out: &mut [u8]) -> Result<&mut [u8], u32> {
 }
 
 fn main() {
-    let mut v1 = repeat(0u8).take(4).collect::<Vec<_>>();
-    let mut v2 = repeat(0u8).take(10).collect::<Vec<_>>();
+    let mut v1 = repeat_n(0u8, 4).collect::<Vec<_>>();
+    let mut v2 = repeat_n(0u8, 10).collect::<Vec<_>>();
 
     println!("res1: {:?}", slice1(&mut v1[..]));
     println!("v1: {:?}", v1);

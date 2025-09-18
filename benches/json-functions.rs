@@ -87,7 +87,7 @@ pub fn gen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + '
     }
 }
 
-use std::iter::repeat;
+use std::iter::repeat_n;
 
 #[test]
 fn json_test() {
@@ -101,7 +101,7 @@ fn json_test() {
       }),
     });
 
-    let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+    let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
     let index = {
         let sr = gen_json_value(&value);
 
@@ -127,9 +127,9 @@ fn functions_json(b: &mut Bencher) {
       }),
     });
 
-    let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
+    let value = JsonValue::Array(repeat_n(element, 10).collect::<Vec<JsonValue>>());
 
-    let mut buffer = repeat(0u8).take(16384).collect::<Vec<_>>();
+    let mut buffer = repeat_n(0u8, 16384).collect::<Vec<_>>();
     let index = {
         let sr = gen_json_value(&value);
 
@@ -146,7 +146,7 @@ fn functions_json(b: &mut Bencher) {
 
 #[bench]
 fn functions_gen_str(b: &mut Bencher) {
-    let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+    let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
 
     let index = {
         let sr = gen_str(&"hello");

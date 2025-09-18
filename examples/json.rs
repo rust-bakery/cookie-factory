@@ -2,7 +2,7 @@ extern crate cookie_factory;
 #[macro_use]
 extern crate maplit;
 
-use std::{iter::repeat, str};
+use std::{iter::repeat_n, str};
 
 #[path = "../tests/json/mod.rs"]
 mod implementation;
@@ -22,7 +22,7 @@ fn main() {
       }),
     });
 
-    let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
+    let value = JsonValue::Array(repeat_n(element, 10).collect::<Vec<JsonValue>>());
 
     let mut buffer = [0u8; 8192];
     let sr = gen_json_value(&value);

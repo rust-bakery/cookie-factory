@@ -1,12 +1,11 @@
 #![feature(test)]
-extern crate test;
-#[macro_use]
 extern crate cookie_factory;
+extern crate test;
 #[macro_use]
 extern crate maplit;
 
 use std::collections::BTreeMap;
-use std::iter::repeat;
+use std::iter::repeat_n;
 use std::str;
 
 use cookie_factory::*;
@@ -63,7 +62,7 @@ pub fn gen_array<'a>(
     arr: &[JsonValue],
 ) -> Result<(&'a mut [u8], usize), GenError> {
     let mut output = gen_slice!(x, &b"["[..])?;
-    if arr.len() > 0 {
+    if !arr.is_empty() {
         output = gen_json_value(output, &arr[0])?;
 
         if arr.len() > 1 {
@@ -127,9 +126,9 @@ fn macros_json(b: &mut Bencher) {
       }),
     });
 
-    let value = JsonValue::Array(repeat(element).take(10).collect::<Vec<JsonValue>>());
+    let value = JsonValue::Array(repeat_n(element, 10).collect::<Vec<JsonValue>>());
 
-    let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+    let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
     let index = {
         let (buf, index) = gen_json_value((&mut buffer, 0), &value).unwrap();
 
@@ -150,7 +149,7 @@ fn macros_json(b: &mut Bencher) {
 #[bench]
 fn macros_gen_str(b: &mut Bencher) {
     let value = String::from("hello");
-    let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+    let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
     let index = {
         let (buf, index) = gen_str((&mut buffer, 0), &value).unwrap();
 

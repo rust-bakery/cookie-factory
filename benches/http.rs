@@ -2,7 +2,7 @@
 extern crate cookie_factory;
 extern crate test;
 
-use std::iter::repeat;
+use std::iter::repeat_n;
 
 use test::Bencher;
 
@@ -88,7 +88,7 @@ mod macros {
             body: b"Hello, world!",
         };
 
-        let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+        let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
         let index = {
             let (buf, index) = cf_request((&mut buffer[..], 0), &request).unwrap();
 
@@ -139,7 +139,7 @@ mod functions {
             body: b"Hello, world!",
         };
 
-        let mut buffer = repeat(0).take(16384).collect::<Vec<u8>>();
+        let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
         let index = {
             let sr = fn_request(&request);
             let (_, pos) = gen(sr, &mut buffer[..]).unwrap();
