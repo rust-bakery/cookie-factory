@@ -62,7 +62,7 @@ pub fn gen_key_value<'a, 'b: 'a, W: Write>(
     move |out: WriteContext<W>| {
         let out = gen_str(kv.0)(out)?;
         let out = string(":")(out)?;
-        gen_json_value(&kv.1)(out)
+        gen_json_value(kv.1)(out)
     }
 }
 
@@ -149,7 +149,7 @@ fn functions_gen_str(b: &mut Bencher) {
     let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
 
     let index = {
-        let sr = gen_str(&"hello");
+        let sr = gen_str("hello");
 
         let (_, res) = gen(sr, &mut buffer[..]).unwrap();
         res as usize
@@ -157,7 +157,7 @@ fn functions_gen_str(b: &mut Bencher) {
 
     b.bytes = index as u64;
     b.iter(|| {
-        let sr = gen_str(&"hello");
+        let sr = gen_str("hello");
         let _ = gen_simple(sr, &mut buffer[..]).unwrap();
     });
 }
