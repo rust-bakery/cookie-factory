@@ -13,7 +13,7 @@ edition = "2018"
 
 include = [
   "Cargo.toml",
-  "LICENSE",
+  "LICENSES/MIT.txt",
   "README.md",
   ".gitignore",
   "src/*.rs",
