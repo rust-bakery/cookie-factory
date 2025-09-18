@@ -282,7 +282,7 @@ impl BackToTheBuffer for Vec<u8> {
         } = s;
 
         let start_len = vec.len();
-        vec.extend(std::iter::repeat(0).take(reserved));
+        vec.extend(std::iter::repeat_n(0, reserved));
 
         let (mut new_context, tmp) = gen(WriteContext {
             write: vec,
