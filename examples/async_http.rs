@@ -10,7 +10,7 @@ async fn main() {
     use cookie_factory::async_bufwriter::{gen, AsyncBufWriter};
 
     let socket = TcpStream::connect("127.0.0.1:8080").await.unwrap();
-    let mut stream = AsyncBufWriter::new(socket);
+    let stream = AsyncBufWriter::new(socket);
 
     let request = Request {
         method: "GET",
