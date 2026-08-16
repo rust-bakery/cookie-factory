@@ -7,7 +7,7 @@ use async_std::net::TcpStream;
 
 #[async_std::main]
 async fn main() {
-    use cookie_factory::async_bufwriter::{gen, AsyncBufWriter};
+    use cookie_factory::async_bufwriter::{jen, AsyncBufWriter};
 
     let socket = TcpStream::connect("127.0.0.1:8080").await.unwrap();
     let stream = AsyncBufWriter::new(socket);
@@ -38,7 +38,7 @@ async fn main() {
     };
 
     let sr = fn_request(&request);
-    let (stream, size) = gen(sr, stream).await.unwrap();
+    let (stream, size) = jen(sr, stream).await.unwrap();
 
     println!(
         "wrote:\n{} bytes (remaining in buffer: {})",

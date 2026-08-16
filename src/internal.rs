@@ -10,7 +10,7 @@ use crate::lib::std::{
 /// `cookie_factory::GenError` is returned.
 pub type GenResult<W> = Result<WriteContext<W>, GenError>;
 
-/// Base type for generator errors
+/// Base type for jenerator errors
 #[derive(Debug)]
 pub enum GenError {
     /// Input buffer is too small. Argument is the maximum index that is required
@@ -105,19 +105,19 @@ impl<W: Seek> io::Seek for WriteContext<W> {
 /// This internally wraps `w` in a `WriteContext`, starting at position 0.
 ///
 /// ```rust
-/// use cookie_factory::{gen, combinator::slice};
+/// use cookie_factory::{jen, combinator::slice};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
 ///   assert_eq!(buf.len(), 100 - 4);
 ///   assert_eq!(pos, 4);
 /// }
 ///
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
-pub fn gen<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<(W, u64), GenError> {
+pub fn jen<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<(W, u64), GenError> {
     f(WriteContext::from(w)).map(|ctx| ctx.into_inner())
 }
 
@@ -126,18 +126,18 @@ pub fn gen<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<(W, u64), GenError
 /// This internally wraps `w` in a `WriteContext`, starting at position 0.
 ///
 /// ```rust
-/// use cookie_factory::{gen_simple, combinator::slice};
+/// use cookie_factory::{jen_simple, combinator::slice};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let buf = gen_simple(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
+///   let buf = jen_simple(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
 ///
 /// assert_eq!(&buf[..4], &b"abcd"[..]);
 /// ```
-pub fn gen_simple<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<W, GenError> {
+pub fn jen_simple<W: Write, F: SerializeFn<W>>(f: F, w: W) -> Result<W, GenError> {
     f(WriteContext::from(w)).map(|ctx| ctx.into_inner().0)
 }
 
@@ -158,7 +158,7 @@ pub trait BackToTheBuffer: Write {
     >(
         s: WriteContext<Self>,
         reserved: usize,
-        gen: &Gen,
+        jen: &Gen,
         before: &Before,
     ) -> Result<WriteContext<Self>, GenError>
     where
@@ -177,12 +177,12 @@ impl<W: Seek> BackToTheBuffer for W {
     >(
         mut s: WriteContext<Self>,
         reserved: usize,
-        gen: &Gen,
+        jen: &Gen,
         before: &Before,
     ) -> Result<WriteContext<Self>, GenError> {
         let start = s.stream_position()?;
         let begin = s.seek(SeekFrom::Current(reserved as i64))?;
-        let (mut buf, tmp) = gen(s)?;
+        let (mut buf, tmp) = jen(s)?;
         let end = buf.stream_position()?;
         buf.seek(SeekFrom::Start(start))?;
         let mut buf = before(buf, tmp)?;
@@ -234,7 +234,7 @@ impl BackToTheBuffer for &mut [u8] {
     >(
         s: WriteContext<Self>,
         reserved: usize,
-        gen: &Gen,
+        jen: &Gen,
         before: &Before,
     ) -> Result<WriteContext<Self>, GenError> {
         let WriteContext {
@@ -243,7 +243,7 @@ impl BackToTheBuffer for &mut [u8] {
         } = s;
 
         let (res, buf) = slice.split_at_mut(reserved);
-        let (new_context, tmp) = gen(WriteContext {
+        let (new_context, tmp) = jen(WriteContext {
             write: buf,
             position: original_position + reserved as u64,
         })?;
@@ -273,7 +273,7 @@ impl BackToTheBuffer for Vec<u8> {
     >(
         s: WriteContext<Self>,
         reserved: usize,
-        gen: &Gen,
+        jen: &Gen,
         before: &Before,
     ) -> Result<WriteContext<Self>, GenError> {
         let WriteContext {
@@ -284,7 +284,7 @@ impl BackToTheBuffer for Vec<u8> {
         let start_len = vec.len();
         vec.extend(std::iter::repeat_n(0, reserved));
 
-        let (mut new_context, tmp) = gen(WriteContext {
+        let (mut new_context, tmp) = jen(WriteContext {
             write: vec,
             position: original_position + reserved as u64,
         })?;

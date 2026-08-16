@@ -5,12 +5,12 @@ use crate::lib::std::io::Write;
 /// Applies 2 serializers in sequence
 ///
 /// ```rust
-/// use cookie_factory::{gen, sequence::pair, combinator::string};
+/// use cookie_factory::{jen, sequence::pair, combinator::string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(pair(string("abcd"), string("efgh")), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(pair(string("abcd"), string("efgh")), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 8);
 ///   assert_eq!(buf.len(), 100 - 8);
 /// }
@@ -37,7 +37,7 @@ impl<W: Write, A: SerializeFn<W>> Tuple<W> for (A,) {
 }
 
 // Generates all the Tuple impls for tuples of arbitrary sizes based on a list of type
-// parameters like FnA FnB FnC. It would generate the impl then for (FnA, FnB)
+// parameters like FnA FnB FnC. It would jenerate the impl then for (FnA, FnB)
 // and (FnA, FnB, FnC).
 macro_rules! tuple_trait(
   ($name1:ident, $name2: ident, $($name:ident),*) => (
@@ -126,12 +126,12 @@ tuple_trait!(
 /// Currently tuples up to 20 elements are supported.
 ///
 /// ```rust
-/// use cookie_factory::{gen, sequence::tuple, combinator::string, bytes::be_u16};
+/// use cookie_factory::{jen, sequence::tuple, combinator::string, bytes::be_u16};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(
+///   let (buf, pos) = jen(
 ///     tuple((
 ///       string("abcd"),
 ///       be_u16(0x20),
@@ -153,7 +153,7 @@ pub fn tuple<W: Write, List: Tuple<W>>(l: List) -> impl SerializeFn<W> {
 mod test {
     use super::*;
     use crate::combinator::string;
-    use crate::internal::gen_simple;
+    use crate::internal::jen_simple;
 
     #[test]
     fn test_pair_with_cursor() {
@@ -165,7 +165,7 @@ mod test {
             let cursor = Cursor::new(&mut buf[..]);
             let serializer = pair(string("1234"), string("5678"));
 
-            let cursor = gen_simple(serializer, cursor).unwrap();
+            let cursor = jen_simple(serializer, cursor).unwrap();
             assert_eq!(cursor.position(), 8);
         }
 
@@ -182,7 +182,7 @@ mod test {
             let cursor = Cursor::new(&mut buf[..]);
             let serializer = tuple((string("1234"), string("5678"), tuple((string("0123"),))));
 
-            let cursor = gen_simple(serializer, cursor).unwrap();
+            let cursor = jen_simple(serializer, cursor).unwrap();
             assert_eq!(cursor.position(), 12);
         }
 

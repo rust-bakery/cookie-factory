@@ -35,7 +35,7 @@ pub mod lib {
 }
 
 #[macro_use]
-pub mod gen;
+pub mod jen;
 
 mod internal;
 pub use internal::*;

@@ -22,7 +22,7 @@ pub enum JsonValue {
 }
 
 #[inline(always)]
-pub fn gen_str<'a, 'b: 'a, W: Write>(s: &'b str) -> impl SerializeFn<W> + 'a {
+pub fn jen_str<'a, 'b: 'a, W: Write>(s: &'b str) -> impl SerializeFn<W> + 'a {
     move |out: WriteContext<W>| {
         let out = string("\"")(out)?;
         let out = string(s)(out)?;
@@ -31,7 +31,7 @@ pub fn gen_str<'a, 'b: 'a, W: Write>(s: &'b str) -> impl SerializeFn<W> + 'a {
 }
 
 #[inline(always)]
-pub fn gen_bool<W: Write>(b: bool) -> impl SerializeFn<W> {
+pub fn jen_bool<W: Write>(b: bool) -> impl SerializeFn<W> {
     if b {
         string("true")
     } else {
@@ -40,7 +40,7 @@ pub fn gen_bool<W: Write>(b: bool) -> impl SerializeFn<W> {
 }
 
 #[inline(always)]
-pub fn gen_num<W: Write>(_b: f64) -> impl SerializeFn<W> {
+pub fn jen_num<W: Write>(_b: f64) -> impl SerializeFn<W> {
     /*move |out: &'a mut [u8]| {
       let s = format!("{}", b);
       string(s)(out)
@@ -48,42 +48,42 @@ pub fn gen_num<W: Write>(_b: f64) -> impl SerializeFn<W> {
     string("1234.56")
 }
 
-pub fn gen_array<'a, 'b: 'a, W: Write>(arr: &'b [JsonValue]) -> impl SerializeFn<W> + 'a {
+pub fn jen_array<'a, 'b: 'a, W: Write>(arr: &'b [JsonValue]) -> impl SerializeFn<W> + 'a {
     move |out: WriteContext<W>| {
         let out = string("[")(out)?;
-        let out = separated_list(string(","), arr.iter().map(gen_json_value))(out)?;
+        let out = separated_list(string(","), arr.iter().map(jen_json_value))(out)?;
         string("]")(out)
     }
 }
 
-pub fn gen_key_value<'a, 'b: 'a, W: Write>(
+pub fn jen_key_value<'a, 'b: 'a, W: Write>(
     kv: (&'b String, &'b JsonValue),
 ) -> impl SerializeFn<W> + 'a {
     move |out: WriteContext<W>| {
-        let out = gen_str(kv.0)(out)?;
+        let out = jen_str(kv.0)(out)?;
         let out = string(":")(out)?;
-        gen_json_value(kv.1)(out)
+        jen_json_value(kv.1)(out)
     }
 }
 
-pub fn gen_object<'a, 'b: 'a, W: Write>(
+pub fn jen_object<'a, 'b: 'a, W: Write>(
     o: &'b BTreeMap<String, JsonValue>,
 ) -> impl SerializeFn<W> + 'a {
     move |out: WriteContext<W>| {
         let out = string("{")(out)?;
 
-        let out = separated_list(string(","), o.iter().map(gen_key_value))(out)?;
+        let out = separated_list(string(","), o.iter().map(jen_key_value))(out)?;
         string("}")(out)
     }
 }
 
-pub fn gen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + 'a {
+pub fn jen_json_value<'a, W: Write>(g: &'a JsonValue) -> impl SerializeFn<W> + 'a {
     move |out: WriteContext<W>| match g {
-        JsonValue::Str(ref s) => gen_str(s)(out),
-        JsonValue::Boolean(ref b) => gen_bool(*b)(out),
-        JsonValue::Num(ref n) => gen_num(*n)(out),
-        JsonValue::Array(ref v) => gen_array(v)(out),
-        JsonValue::Object(ref o) => gen_object(o)(out),
+        JsonValue::Str(ref s) => jen_str(s)(out),
+        JsonValue::Boolean(ref b) => jen_bool(*b)(out),
+        JsonValue::Num(ref n) => jen_num(*n)(out),
+        JsonValue::Array(ref v) => jen_array(v)(out),
+        JsonValue::Object(ref o) => jen_object(o)(out),
     }
 }
 
@@ -103,9 +103,9 @@ fn json_test() {
 
     let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
     let index = {
-        let sr = gen_json_value(&value);
+        let sr = jen_json_value(&value);
 
-        let (_, res) = gen(sr, &mut buffer[..]).unwrap();
+        let (_, res) = jen(sr, &mut buffer[..]).unwrap();
         res as usize
     };
 
@@ -131,33 +131,33 @@ fn functions_json(b: &mut Bencher) {
 
     let mut buffer = repeat_n(0u8, 16384).collect::<Vec<_>>();
     let index = {
-        let sr = gen_json_value(&value);
+        let sr = jen_json_value(&value);
 
-        let (_, res) = gen(sr, &mut buffer[..]).unwrap();
+        let (_, res) = jen(sr, &mut buffer[..]).unwrap();
         res as usize
     };
 
     b.bytes = index as u64;
     b.iter(|| {
-        let sr = gen_json_value(&value);
-        let _ = gen_simple(sr, &mut buffer[..]).unwrap();
+        let sr = jen_json_value(&value);
+        let _ = jen_simple(sr, &mut buffer[..]).unwrap();
     });
 }
 
 #[bench]
-fn functions_gen_str(b: &mut Bencher) {
+fn functions_jen_str(b: &mut Bencher) {
     let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
 
     let index = {
-        let sr = gen_str("hello");
+        let sr = jen_str("hello");
 
-        let (_, res) = gen(sr, &mut buffer[..]).unwrap();
+        let (_, res) = jen(sr, &mut buffer[..]).unwrap();
         res as usize
     };
 
     b.bytes = index as u64;
     b.iter(|| {
-        let sr = gen_str("hello");
-        let _ = gen_simple(sr, &mut buffer[..]).unwrap();
+        let sr = jen_str("hello");
+        let _ = jen_simple(sr, &mut buffer[..]).unwrap();
     });
 }

@@ -20,84 +20,84 @@ pub enum JsonValue {
     Object(BTreeMap<String, JsonValue>),
 }
 
-pub fn gen_json_value<'a>(
+pub fn jen_json_value<'a>(
     x: (&'a mut [u8], usize),
     g: &JsonValue,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     match g {
-        JsonValue::Str(ref s) => gen_str(x, s),
-        JsonValue::Boolean(b) => gen_bool(x, b),
-        JsonValue::Num(ref f) => gen_num(x, f),
-        JsonValue::Array(ref v) => gen_array(x, v),
-        JsonValue::Object(ref o) => gen_object(x, o),
+        JsonValue::Str(ref s) => jen_str(x, s),
+        JsonValue::Boolean(b) => jen_bool(x, b),
+        JsonValue::Num(ref f) => jen_num(x, f),
+        JsonValue::Array(ref v) => jen_array(x, v),
+        JsonValue::Object(ref o) => jen_object(x, o),
     }
 }
 
-pub fn gen_str<'a>(
+pub fn jen_str<'a>(
     x: (&'a mut [u8], usize),
     s: &String,
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(
+    do_jen!(
         x,
-        gen_slice!(&b"\""[..]) >> gen_slice!(s.as_bytes()) >> gen_slice!(&b"\""[..])
+        jen_slice!(&b"\""[..]) >> jen_slice!(s.as_bytes()) >> jen_slice!(&b"\""[..])
     )
 }
 
-pub fn gen_bool<'a>(x: (&'a mut [u8], usize), b: &bool) -> Result<(&'a mut [u8], usize), GenError> {
+pub fn jen_bool<'a>(x: (&'a mut [u8], usize), b: &bool) -> Result<(&'a mut [u8], usize), GenError> {
     let sl = match b {
         true => &b"true"[..],
         false => &b"false"[..],
     };
 
-    gen_slice!(x, sl)
+    jen_slice!(x, sl)
 }
 
-pub fn gen_num<'a>(x: (&'a mut [u8], usize), _b: &f64) -> Result<(&'a mut [u8], usize), GenError> {
+pub fn jen_num<'a>(x: (&'a mut [u8], usize), _b: &f64) -> Result<(&'a mut [u8], usize), GenError> {
     //TODO
-    gen_slice!(x, &b"1234.56"[..])
+    jen_slice!(x, &b"1234.56"[..])
 }
 
-pub fn gen_array<'a>(
+pub fn jen_array<'a>(
     x: (&'a mut [u8], usize),
     arr: &[JsonValue],
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    let mut output = gen_slice!(x, &b"["[..])?;
+    let mut output = jen_slice!(x, &b"["[..])?;
     if !arr.is_empty() {
-        output = gen_json_value(output, &arr[0])?;
+        output = jen_json_value(output, &arr[0])?;
 
         if arr.len() > 1 {
-            output = gen_many!((output.0, output.1), &arr[1..], gen_array_element)?;
+            output = jen_many!((output.0, output.1), &arr[1..], jen_array_element)?;
         }
     }
-    gen_slice!(output, &b"]"[..])
+    jen_slice!(output, &b"]"[..])
 }
 
-pub fn gen_array_element<'a>(
+pub fn jen_array_element<'a>(
     x: (&'a mut [u8], usize),
     val: &JsonValue,
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(x, gen_slice!(&b","[..]) >> gen_call!(gen_json_value, val))
+    do_jen!(x, jen_slice!(&b","[..]) >> jen_call!(jen_json_value, val))
 }
 
-pub fn gen_object<'a>(
+pub fn jen_object<'a>(
     x: (&'a mut [u8], usize),
     o: &BTreeMap<String, JsonValue>,
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    let mut output = gen_slice!(x, &b"{"[..])?;
+    let mut output = jen_slice!(x, &b"{"[..])?;
     let mut it = o.iter();
 
     if let Some((key, value)) = it.next() {
-        output = gen_object_element(output, key, value, true)?;
+        output = jen_object_element(output, key, value, true)?;
     }
 
     for (key, value) in it {
-        output = gen_object_element(output, key, value, false)?;
+        output = jen_object_element(output, key, value, false)?;
     }
 
-    gen_slice!(output, &b"]"[..])
+    jen_slice!(output, &b"]"[..])
 }
 
-pub fn gen_object_element<'a>(
+pub fn jen_object_element<'a>(
     x: (&'a mut [u8], usize),
     key: &String,
     value: &JsonValue,
@@ -105,12 +105,12 @@ pub fn gen_object_element<'a>(
 ) -> Result<(&'a mut [u8], usize), GenError> {
     let mut output = x;
     if !is_first {
-        output = gen_slice!(output, &b","[..])?;
+        output = jen_slice!(output, &b","[..])?;
     }
 
-    do_gen!(
+    do_jen!(
         output,
-        gen_call!(gen_str, key) >> gen_slice!(&b":"[..]) >> gen_call!(gen_json_value, value)
+        jen_call!(jen_str, key) >> jen_slice!(&b":"[..]) >> jen_call!(jen_json_value, value)
     )
 }
 
@@ -130,7 +130,7 @@ fn macros_json(b: &mut Bencher) {
 
     let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
     let index = {
-        let (buf, index) = gen_json_value((&mut buffer, 0), &value).unwrap();
+        let (buf, index) = jen_json_value((&mut buffer, 0), &value).unwrap();
 
         println!("result:\n{}", str::from_utf8(buf).unwrap());
         //panic!();
@@ -141,17 +141,17 @@ fn macros_json(b: &mut Bencher) {
     println!("wrote {} bytes", index);
     b.bytes = index;
     b.iter(|| {
-        let res = gen_json_value((&mut buffer, 0), &value).unwrap();
+        let res = jen_json_value((&mut buffer, 0), &value).unwrap();
         res.1
     });
 }
 
 #[bench]
-fn macros_gen_str(b: &mut Bencher) {
+fn macros_jen_str(b: &mut Bencher) {
     let value = String::from("hello");
     let mut buffer = repeat_n(0, 16384).collect::<Vec<u8>>();
     let index = {
-        let (buf, index) = gen_str((&mut buffer, 0), &value).unwrap();
+        let (buf, index) = jen_str((&mut buffer, 0), &value).unwrap();
 
         println!("result:\n{}", str::from_utf8(buf).unwrap());
         //panic!();
@@ -162,7 +162,7 @@ fn macros_gen_str(b: &mut Bencher) {
     println!("wrote {} bytes", index);
     b.bytes = index;
     b.iter(|| {
-        let res = gen_str((&mut buffer, 0), &value).unwrap();
+        let res = jen_str((&mut buffer, 0), &value).unwrap();
         res.1
     });
 }

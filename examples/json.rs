@@ -9,7 +9,7 @@ mod implementation;
 use crate::implementation::*;
 
 fn main() {
-    use cookie_factory::gen_simple;
+    use cookie_factory::jen_simple;
     use cookie_factory::lib::std::io::Cursor;
 
     let element = JsonValue::Object(btreemap! {
@@ -25,9 +25,9 @@ fn main() {
     let value = JsonValue::Array(repeat_n(element, 10).collect::<Vec<JsonValue>>());
 
     let mut buffer = [0u8; 8192];
-    let sr = gen_json_value(&value);
+    let sr = jen_json_value(&value);
     let writer = Cursor::new(&mut buffer[..]);
-    let writer = gen_simple(sr, writer).unwrap();
+    let writer = jen_simple(sr, writer).unwrap();
     let size = writer.position() as usize;
     let buffer = writer.into_inner();
 

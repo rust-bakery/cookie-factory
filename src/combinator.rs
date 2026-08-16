@@ -13,12 +13,12 @@ macro_rules! try_write(($out:ident, $len:ident, $data:expr) => (
 /// Writes a byte slice to the output
 ///
 /// ```rust
-/// use cookie_factory::{gen, combinator::slice};
+/// use cookie_factory::{jen, combinator::slice};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(slice(&b"abcd"[..]), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
@@ -34,12 +34,12 @@ pub fn slice<S: AsRef<[u8]>, W: Write>(data: S) -> impl SerializeFn<W> {
 /// Writes a string slice to the output
 ///
 /// ```rust
-/// use cookie_factory::{gen, combinator::string};
+/// use cookie_factory::{jen, combinator::string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(string("abcd"), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(string("abcd"), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
@@ -55,12 +55,12 @@ pub fn string<S: AsRef<str>, W: Write>(data: S) -> impl SerializeFn<W> {
 /// Writes an hex string to the output
 #[cfg(feature = "std")]
 /// ```rust
-/// use cookie_factory::{gen, combinator::hex};
+/// use cookie_factory::{jen, combinator::hex};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(hex(0x2A), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(hex(0x2A), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 2);
 ///   assert_eq!(buf.len(), 100 - 2);
 /// }
@@ -77,11 +77,11 @@ pub fn hex<S: crate::lib::std::fmt::UpperHex, W: Write>(data: S) -> impl Seriali
 /// Skips over some input bytes without writing anything
 ///
 /// ```rust
-/// use cookie_factory::{gen, combinator::skip};
+/// use cookie_factory::{jen, combinator::skip};
 ///
 /// let mut buf = [0u8; 100];
 ///
-/// let (out, pos) = gen(skip(2), &mut buf[..]).unwrap();
+/// let (out, pos) = jen(skip(2), &mut buf[..]).unwrap();
 ///
 /// assert_eq!(pos, 2);
 /// assert_eq!(out.len(), 98);
@@ -93,12 +93,12 @@ pub fn skip<W: Write + Skip>(len: usize) -> impl SerializeFn<W> {
 /// Applies a serializer if the condition is true
 ///
 /// ```rust
-/// use cookie_factory::{gen, combinator::{cond, string}};
+/// use cookie_factory::{jen, combinator::{cond, string}};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// {
-///   let (buf, pos) = gen(cond(true, string("abcd")), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(cond(true, string("abcd")), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 4);
 ///   assert_eq!(buf.len(), 100 - 4);
 /// }
@@ -123,14 +123,14 @@ where
 /// reserved space.
 ///
 /// ```rust
-/// use cookie_factory::{gen, gen_simple, sequence::tuple, combinator::{back_to_the_buffer, string}, bytes::be_u8, bytes::be_u32};
+/// use cookie_factory::{jen, jen_simple, sequence::tuple, combinator::{back_to_the_buffer, string}, bytes::be_u8, bytes::be_u32};
 ///
 /// let mut buf = [0; 9];
-/// gen_simple(tuple((
+/// jen_simple(tuple((
 ///     back_to_the_buffer(
 ///         4,
-///         move |buf| gen(string("test"), buf),
-///         move |buf, len| gen_simple(be_u32(len as u32), buf)
+///         move |buf| jen(string("test"), buf),
+///         move |buf, len| jen_simple(be_u32(len as u32), buf)
 ///     ),
 ///     be_u8(42)
 /// )), &mut buf[..]).unwrap();
@@ -138,14 +138,14 @@ where
 /// ```
 pub fn back_to_the_buffer<W: BackToTheBuffer, Tmp, Gen, Before>(
     reserved: usize,
-    gen: Gen,
+    jen: Gen,
     before: Before,
 ) -> impl SerializeFn<W>
 where
     Gen: Fn(WriteContext<W>) -> Result<(WriteContext<W>, Tmp), GenError>,
     Before: Fn(WriteContext<W>, Tmp) -> GenResult<W>,
 {
-    move |w: WriteContext<W>| W::reserve_write_use(w, reserved, &gen, &before)
+    move |w: WriteContext<W>| W::reserve_write_use(w, reserved, &jen, &before)
 }
 
 //missing combinators:
@@ -165,12 +165,12 @@ mod test {
     use crate::sequence::tuple;
 
     #[test]
-    fn test_gen_with_length() {
+    fn test_jen_with_length() {
         let mut buf = [0; 8];
         {
             let (len_buf, buf) = buf.split_at_mut(4);
-            let (_, pos) = gen(string("test"), buf).unwrap();
-            gen(be_u32(pos as u32), len_buf).unwrap();
+            let (_, pos) = jen(string("test"), buf).unwrap();
+            jen(be_u32(pos as u32), len_buf).unwrap();
         }
         assert_eq!(&buf, &[0, 0, 0, 4, b't', b'e', b's', b't']);
     }
@@ -179,12 +179,12 @@ mod test {
     fn test_back_to_the_buffer() {
         let mut buf = [0; 9];
 
-        let new_buf = gen_simple(
+        let new_buf = jen_simple(
             tuple((
                 back_to_the_buffer(
                     4,
-                    move |buf| gen(string("test"), buf),
-                    move |buf, len| gen_simple(be_u32(len as u32), buf),
+                    move |buf| jen(string("test"), buf),
+                    move |buf, len| jen_simple(be_u32(len as u32), buf),
                 ),
                 be_u8(42),
             )),
@@ -201,12 +201,12 @@ mod test {
     fn test_back_to_the_buffer_vec() {
         let buf = Vec::new();
 
-        let buf = gen_simple(
+        let buf = jen_simple(
             tuple((
                 back_to_the_buffer(
                     4,
-                    move |buf| gen(string("test"), buf),
-                    move |buf, len| gen_simple(be_u32(len as u32), buf),
+                    move |buf| jen(string("test"), buf),
+                    move |buf, len| jen_simple(be_u32(len as u32), buf),
                 ),
                 be_u8(42),
             )),
@@ -222,12 +222,12 @@ mod test {
         let mut buf = [0; 9];
         {
             let cursor = crate::lib::std::io::Cursor::new(&mut buf[..]);
-            let cursor = gen_simple(
+            let cursor = jen_simple(
                 tuple((
                     back_to_the_buffer(
                         4,
-                        move |buf| gen(string("test"), buf),
-                        move |buf, len| gen_simple(be_u32(len as u32), buf),
+                        move |buf| jen(string("test"), buf),
+                        move |buf, len| jen_simple(be_u32(len as u32), buf),
                     ),
                     be_u8(42),
                 )),
@@ -244,13 +244,13 @@ mod test {
         let mut buf = [0; 10];
         {
             let cursor = crate::lib::std::io::Cursor::new(&mut buf[..]);
-            let (cursor, pos) = gen(
+            let (cursor, pos) = jen(
                 tuple((
                     be_u8(64),
                     back_to_the_buffer(
                         4,
-                        &move |buf| gen(string("test"), buf),
-                        &move |buf, len| gen_simple(be_u32(len as u32), buf),
+                        &move |buf| jen(string("test"), buf),
+                        &move |buf, len| jen_simple(be_u32(len as u32), buf),
                     ),
                     be_u8(42),
                 )),

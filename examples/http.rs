@@ -5,7 +5,7 @@ mod implementation;
 use crate::implementation::*;
 
 fn main() {
-    use cookie_factory::gen;
+    use cookie_factory::jen;
     let request = Request {
         method: "GET",
         uri: "/hello/test/a/b/c?name=value#hash",
@@ -33,7 +33,7 @@ fn main() {
 
     let sr = fn_request(&request);
     let writer = vec![];
-    let (buffer, size) = gen(sr, writer).unwrap();
+    let (buffer, size) = jen(sr, writer).unwrap();
 
     println!(
         "result:\n{}",

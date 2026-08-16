@@ -57,7 +57,7 @@ impl<W: AsyncWrite + Unpin> std::io::Write for AsyncBufWriter<W> {
     }
 }
 
-pub async fn gen<W: AsyncWrite + Unpin, F: crate::internal::SerializeFn<AsyncBufWriter<W>>>(
+pub async fn jen<W: AsyncWrite + Unpin, F: crate::internal::SerializeFn<AsyncBufWriter<W>>>(
     f: F,
     w: AsyncBufWriter<W>,
 ) -> Result<(AsyncBufWriter<W>, u64), crate::internal::GenError> {

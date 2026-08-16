@@ -26,12 +26,12 @@ pub fn cf_request<'a, 'b, 'c>(
     i: (&'a mut [u8], usize),
     r: &'c Request<'b>,
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(
+    do_jen!(
         (i.0, i.1),
-        gen_call!(cf_request_line, r.method, r.uri)
-            >> gen_many!(&r.headers, cf_header)
-            >> gen_slice!(b"\r\n")
-            >> gen_slice!(r.body)
+        jen_call!(cf_request_line, r.method, r.uri)
+            >> jen_many!(&r.headers, cf_header)
+            >> jen_slice!(b"\r\n")
+            >> jen_slice!(r.body)
     )
 }
 
@@ -40,12 +40,12 @@ pub fn cf_request_line<'a, 'b>(
     method: &'b str,
     uri: &'b str,
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(
+    do_jen!(
         (i.0, i.1),
-        gen_slice!(method.as_bytes())
-            >> gen_slice!(b" ")
-            >> gen_slice!(uri.as_bytes())
-            >> gen_slice!(b" HTTP/1.1\r\n")
+        jen_slice!(method.as_bytes())
+            >> jen_slice!(b" ")
+            >> jen_slice!(uri.as_bytes())
+            >> jen_slice!(b" HTTP/1.1\r\n")
     )
 }
 
@@ -53,12 +53,12 @@ pub fn cf_header<'a, 'b, 'c>(
     i: (&'a mut [u8], usize),
     h: &'c Header<'b>,
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(
+    do_jen!(
         (i.0, i.1),
-        gen_slice!(h.name.as_bytes())
-            >> gen_slice!(b": ")
-            >> gen_slice!(h.value.as_bytes())
-            >> gen_slice!(b"\r\n")
+        jen_slice!(h.name.as_bytes())
+            >> jen_slice!(b": ")
+            >> jen_slice!(h.value.as_bytes())
+            >> jen_slice!(b"\r\n")
     )
 }
 

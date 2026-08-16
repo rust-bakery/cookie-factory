@@ -5,13 +5,13 @@ use crate::lib::std::io::Write;
 /// Applies an iterator of serializers of the same type
 ///
 /// ```rust
-/// use cookie_factory::{gen, multi::all, combinator::string};
+/// use cookie_factory::{jen, multi::all, combinator::string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
 /// {
-///   let (buf, pos) = gen(all(data.iter().map(string)), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(all(data.iter().map(string)), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 12);
 ///   assert_eq!(buf.len(), 100 - 12);
 /// }
@@ -37,13 +37,13 @@ where
 /// Applies an iterator of serializers of the same type with a separator between each serializer
 ///
 /// ```rust
-/// use cookie_factory::{gen, multi::separated_list, combinator::string};
+/// use cookie_factory::{jen, multi::separated_list, combinator::string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
 /// {
-///   let (buf, pos) = gen(separated_list(string(","), data.iter().map(string)), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(separated_list(string(","), data.iter().map(string)), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 14);
 ///   assert_eq!(buf.len(), 100 - 14);
 /// }
@@ -74,23 +74,23 @@ where
     }
 }
 
-/// Applies a generator over an iterator of values, and applies the serializers generated
+/// Applies a jenerator over an iterator of values, and applies the serializers jenerated
 ///
 /// ```rust
-/// use cookie_factory::{gen, multi::many_ref, combinator::string};
+/// use cookie_factory::{jen, multi::many_ref, combinator::string};
 ///
 /// let mut buf = [0u8; 100];
 ///
 /// let data = vec!["abcd", "efgh", "ijkl"];
 /// {
-///   let (buf, pos) = gen(many_ref(&data, string), &mut buf[..]).unwrap();
+///   let (buf, pos) = jen(many_ref(&data, string), &mut buf[..]).unwrap();
 ///   assert_eq!(pos, 12);
 ///   assert_eq!(buf.len(), 100 - 12);
 /// }
 ///
 /// assert_eq!(&buf[..12], &b"abcdefghijkl"[..]);
 /// ```
-pub fn many_ref<E, It, I, F, G, O: Write>(items: I, generator: F) -> impl SerializeFn<O>
+pub fn many_ref<E, It, I, F, G, O: Write>(items: I, jenerator: F) -> impl SerializeFn<O>
 where
     It: Iterator<Item = E> + Clone,
     I: IntoIterator<Item = E, IntoIter = It>,
@@ -100,7 +100,7 @@ where
     let items = items.into_iter();
     move |mut out: WriteContext<O>| {
         for item in items.clone() {
-            out = generator(item)(out)?;
+            out = jenerator(item)(out)?;
         }
         Ok(out)
     }

@@ -7,7 +7,7 @@ use crate::implementation::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cookie_factory::gen_simple;
+    use cookie_factory::jen_simple;
     use std::io::Cursor;
     use std::str::from_utf8;
 
@@ -51,7 +51,7 @@ mod tests {
         let (mem2, index2) = {
             let sr = fn_request(&request);
             let writer = Cursor::new(&mut mem2[..]);
-            let writer = gen_simple(sr, writer).unwrap();
+            let writer = jen_simple(sr, writer).unwrap();
             let index2 = writer.position() as usize;
             (writer.into_inner(), index2)
         };
