@@ -148,8 +148,46 @@ where
     move |w: WriteContext<W>| W::reserve_write_use(w, reserved, &jen, &before)
 }
 
+/// Tries to apply first serializer, and runs the second one if it fails.
+///
+/// ```rust
+/// use cookie_factory::{GenError, gen_simple, combinator::{string, or}};
+///
+/// let mut buf = [0; 4];
+/// gen_simple(or(
+///    |_| Err(GenError::CustomError(0)),
+///    string("test")
+/// ), &mut buf[..]);
+/// assert_eq!(&buf, "test".as_bytes());
+///
+/// let mut buf = [0; 4];
+/// gen_simple(or(
+///    string("test"),
+///    |_| Err(GenError::CustomError(0))
+/// ), &mut buf[..]);
+/// assert_eq!(&buf, "test".as_bytes());
+/// ```
+pub fn or<F, G, W: Write>(f: F, g: G) -> impl SerializeFn<W>
+where
+    F: SerializeFn<Vec<u8>>,
+    G: SerializeFn<W>,
+{
+    move |mut out: WriteContext<W>| {
+        let temp = WriteContext::from(Vec::new());
+        match f(temp) {
+            Err(_) => g(out),
+            Ok(val) => {
+                match out.write(&val.into_inner().0[..]) {
+                    Err(err) => return Err(GenError::IoError(err)),
+                    Ok(_) => (),
+                };
+                Ok(out)
+            }
+        }
+    }
+}
+
 //missing combinators:
-//or
 //empty
 //then
 //stream
