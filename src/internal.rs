@@ -242,6 +242,10 @@ impl BackToTheBuffer for &mut [u8] {
             position: original_position,
         } = s;
 
+        if slice.len() < reserved {
+            return Err(GenError::BufferTooSmall(reserved - slice.len()));
+        }
+
         let (res, buf) = slice.split_at_mut(reserved);
         let (new_context, tmp) = jen(WriteContext {
             write: buf,

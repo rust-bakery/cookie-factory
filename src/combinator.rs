@@ -263,3 +263,82 @@ mod test {
         assert_eq!(&buf, &[64, 0, 0, 0, 4, b't', b'e', b's', b't', 42]);
     }
 }
+
+#[cfg(test)]
+mod reservation_tests {
+    use super::*;
+    use crate::bytes::{be_u32, be_u8};
+    use crate::sequence::tuple;
+    use core::cell::Cell;
+
+    #[test]
+    fn short_reservation_returns_missing_bytes_without_running_serializers() {
+        for capacity in 0..4 {
+            let mut buf = [0xa5; 4];
+            let body_called = Cell::new(false);
+            let header_called = Cell::new(false);
+            let result = jen_simple(
+                back_to_the_buffer(
+                    4,
+                    |out| {
+                        body_called.set(true);
+                        Ok((out, ()))
+                    },
+                    |out, ()| {
+                        header_called.set(true);
+                        jen_simple(be_u32(0), out)
+                    },
+                ),
+                &mut buf[..capacity],
+            );
+            assert!(matches!(result, Err(GenError::BufferTooSmall(n)) if n == 4 - capacity));
+            assert!(!body_called.get());
+            assert!(!header_called.get());
+            assert_eq!(buf, [0xa5; 4]);
+        }
+    }
+
+    #[test]
+    fn short_reservation_after_a_field_returns_remaining_deficit() {
+        let mut buf = [0xa5; 4];
+        let result = jen_simple(
+            tuple((
+                be_u8(42),
+                back_to_the_buffer(
+                    4,
+                    |out| jen(string(""), out),
+                    |out, len| jen_simple(be_u32(len as u32), out),
+                ),
+            )),
+            &mut buf[..],
+        );
+        assert!(matches!(result, Err(GenError::BufferTooSmall(1))));
+        assert_eq!(buf, [42, 0xa5, 0xa5, 0xa5]);
+    }
+
+    #[test]
+    fn exactly_sized_reservation_and_zero_reservation_succeed() {
+        let mut buf = [0xa5; 4];
+        let (remaining, pos) = jen(
+            back_to_the_buffer(
+                4,
+                |out| jen(string(""), out),
+                |out, len| jen_simple(be_u32(len as u32), out),
+            ),
+            &mut buf[..],
+        )
+        .unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(pos, 4);
+        assert_eq!(buf, [0; 4]);
+
+        let mut empty = [];
+        let (remaining, pos) = jen(
+            back_to_the_buffer(0, |out| Ok((out, ())), |out, ()| Ok(out)),
+            &mut empty[..],
+        )
+        .unwrap();
+        assert!(remaining.is_empty());
+        assert_eq!(pos, 0);
+    }
+}
